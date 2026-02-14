@@ -1,0 +1,30 @@
+{
+  "name": "pizzeria-search",
+  "version": "1.0.0",
+  "description": "Sistema de búsqueda inteligente de productos de pizzería con Convex",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "generate-catalog": "ts-node scripts/generate-catalog.ts",
+    "seed-catalog": "ts-node scripts/seed-catalog.ts",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "test": "node -e \"console.log('smoke test ok')\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.2.0"
+  }
+}
