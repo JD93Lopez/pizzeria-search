@@ -2,15 +2,32 @@ import { Product } from "@/lib/types";
 
 interface ProductResultProps {
   product: Product;
+  onAddFull?: (product: Product) => void;
+  onAddHalf?: (product: Product) => void;
+  hasPendingHalf?: boolean;
+  pendingHalfSize?: string;
 }
 
-export function ProductResult({ product }: ProductResultProps) {
-  const categoryEmoji = {
+export function ProductResult({
+  product,
+  onAddFull,
+  onAddHalf,
+  hasPendingHalf,
+  pendingHalfSize,
+}: ProductResultProps) {
+  const categoryEmoji: Record<string, string> = {
     pizza: "🍕",
     bebida: "🥤",
     postre: "🍰",
-    combo: "🎁",
+    plato: "🍝",
   };
+
+  const isPizza = product.category === "pizza";
+  const canAddAsHalf =
+    isPizza &&
+    (!hasPendingHalf || (hasPendingHalf && pendingHalfSize === product.size));
+  const isHalfSizeMismatch =
+    isPizza && hasPendingHalf && pendingHalfSize !== product.size;
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
@@ -51,16 +68,55 @@ export function ProductResult({ product }: ProductResultProps) {
         </div>
       </div>
 
-      {product.score !== undefined && (
-        <div className="mt-2 pt-2 border-t border-gray-100">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">
+      {/* Action buttons */}
+      {product.available && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          {product.score !== undefined && (
+            <span className="text-xs text-gray-400 block mb-2">
               Relevancia: {(product.score * 100).toFixed(0)}%
             </span>
-            <button className="text-sm text-pizza-red hover:text-pizza-orange font-medium">
-              Agregar +
+          )}
+
+          <div className="flex gap-2">
+            {/* Full pizza / regular item button */}
+            <button
+              onClick={() => onAddFull?.(product)}
+              className="flex-1 text-sm bg-pizza-red hover:bg-pizza-orange text-white py-1.5 px-3 rounded-full font-medium transition-colors"
+            >
+              {isPizza ? "Pizza Completa +" : "Agregar +"}
             </button>
+
+            {/* Half pizza button (only for pizzas) */}
+            {isPizza && (
+              <button
+                onClick={() => onAddHalf?.(product)}
+                disabled={!canAddAsHalf || isHalfSizeMismatch}
+                className={`flex-1 text-sm py-1.5 px-3 rounded-full font-medium transition-colors ${
+                  canAddAsHalf && !isHalfSizeMismatch
+                    ? hasPendingHalf
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : "bg-amber-500 hover:bg-amber-600 text-white"
+                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                }`}
+                title={
+                  isHalfSizeMismatch
+                    ? `La mitad pendiente es ${pendingHalfSize}, esta pizza es ${product.size}`
+                    : ""
+                }
+              >
+                {hasPendingHalf && canAddAsHalf
+                  ? "Completar Mitad ✓"
+                  : "½ Mitad"}
+              </button>
+            )}
           </div>
+
+          {/* Size mismatch warning */}
+          {isHalfSizeMismatch && (
+            <p className="text-xs text-amber-600 mt-1">
+              ⚠ Tamaño diferente a la mitad pendiente ({pendingHalfSize})
+            </p>
+          )}
         </div>
       )}
     </div>

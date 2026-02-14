@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Message } from "@/lib/types";
+import { Message, Product, CartItem, CartItemHalf } from "@/lib/types";
 import { MessageBubble } from "./components/Message";
 import { ProductResult } from "./components/ProductResult";
 import { ChatInput } from "./components/ChatInput";
 import { ErrorToast } from "./components/ErrorToast";
+import { Cart } from "./components/Cart";
+import { OrderConfirmation } from "./components/OrderConfirmation";
 
 // Helper function for API calls with timeout and retry
 const callWithRetry = async <T,>(
@@ -19,43 +21,55 @@ const callWithRetry = async <T,>(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout')), timeoutMs);
+        setTimeout(() => reject(new Error("Timeout")), timeoutMs);
       });
-      
+
       const result = await Promise.race([apiCall(), timeoutPromise]);
       return result;
     } catch (error) {
       const isLastAttempt = attempt === maxRetries;
-      const isTimeout = error instanceof Error && error.message === 'Timeout';
-      
+
       if (isLastAttempt) {
         throw error;
       }
-      
+
       // Notify about retry
       if (onRetry) {
         onRetry(attempt);
       }
-      
+
       // Wait before retry (exponential backoff)
       const waitTime = Math.min(1000 * attempt, 3000);
       console.log(`Intento ${attempt} falló, reintentando en ${waitTime}ms...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
   }
-  throw new Error('Max retries reached');
+  throw new Error("Max retries reached");
 };
+
+let cartIdCounter = 0;
+const nextCartId = () => `cart-${++cartIdCounter}-${Date.now()}`;
 
 export default function ChatPage() {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [retryAttempt, setRetryAttempt] = useState<number>(0);
 
+  // Cart state
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isOrdering, setIsOrdering] = useState(false);
+  const [orderConfirmation, setOrderConfirmation] = useState<{
+    orderId: string;
+    total: number;
+    itemCount: number;
+  } | null>(null);
+
   const createThread = useMutation(api.agents.pizzaAgent.createThread);
   const processQuery = useAction(api.agents.pizzaAgent.processQuery);
+  const createOrder = useMutation(api.orders.create);
   const messages = useQuery(
     api.agents.pizzaAgent.getMessages,
     threadId ? { threadId } : "skip"
@@ -69,6 +83,125 @@ export default function ChatPage() {
     initThread();
   }, [createThread]);
 
+  // ── Cart helpers ──────────────────────────────────────────────
+
+  const pendingHalf = cart.find(
+    (item): item is CartItemHalf =>
+      item.type === "half" && !item.secondHalf
+  );
+
+  const handleAddFull = useCallback((product: Product) => {
+    setCart((prev) => [
+      ...prev,
+      { id: nextCartId(), type: "full", product, quantity: 1 },
+    ]);
+  }, []);
+
+  const handleAddHalf = useCallback(
+    (product: Product) => {
+      setCart((prev) => {
+        // Look for existing pending half with matching size
+        const pendingIdx = prev.findIndex(
+          (item) =>
+            item.type === "half" &&
+            !item.secondHalf &&
+            item.size === (product.size ?? "mediana")
+        );
+
+        if (pendingIdx !== -1) {
+          // Complete the pending half
+          const updated = [...prev];
+          const pending = updated[pendingIdx] as CartItemHalf;
+          updated[pendingIdx] = { ...pending, secondHalf: product };
+          return updated;
+        }
+
+        // Create a new pending half
+        return [
+          ...prev,
+          {
+            id: nextCartId(),
+            type: "half",
+            firstHalf: product,
+            secondHalf: undefined,
+            size: product.size ?? "mediana",
+            quantity: 1,
+          } as CartItemHalf,
+        ];
+      });
+    },
+    []
+  );
+
+  const handleRemoveItem = useCallback((id: string) => {
+    setCart((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const handleUpdateQuantity = useCallback((id: string, quantity: number) => {
+    setCart((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+    );
+  }, []);
+
+  const handlePlaceOrder = useCallback(async () => {
+    if (!threadId) return;
+    setIsOrdering(true);
+
+    try {
+      const orderItems = cart
+        .filter(
+          (item) =>
+            item.type === "full" ||
+            (item.type === "half" && item.secondHalf)
+        )
+        .map((item) => {
+          if (item.type === "full") {
+            return {
+              type: "full" as const,
+              productIds: [item.product._id],
+              size: item.product.size,
+              price: item.product.price * item.quantity,
+              quantity: item.quantity,
+            };
+          }
+          // half with both halves
+          const half = item as CartItemHalf;
+          const avgPrice =
+            (half.firstHalf.price + half.secondHalf!.price) / 2;
+          return {
+            type: "half" as const,
+            productIds: [half.firstHalf._id, half.secondHalf!._id],
+            size: half.size,
+            price: avgPrice * half.quantity,
+            quantity: half.quantity,
+          };
+        });
+
+      const total = orderItems.reduce((s, i) => s + i.price, 0);
+
+      const orderId = await createOrder({
+        threadId,
+        items: orderItems,
+        total,
+      });
+
+      setOrderConfirmation({
+        orderId: orderId as string,
+        total,
+        itemCount: orderItems.length,
+      });
+      setCart([]);
+    } catch (err) {
+      console.error("Error placing order:", err);
+      setError("No se pudo crear el pedido. Intenta de nuevo.");
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsOrdering(false);
+    }
+  }, [cart, threadId, createOrder]);
+
+  // ── Chat submit ───────────────────────────────────────────────
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !threadId || isLoading) return;
@@ -80,12 +213,11 @@ export default function ChatPage() {
     setError(null);
 
     try {
-      // Use timeout and retry logic
       const result = await callWithRetry(
         () => processQuery({ query: userMessage, threadId }),
-        2000, // 2 second timeout
-        3,    // 3 retry attempts
-        (attempt) => setRetryAttempt(attempt) // Update retry state
+        2000,
+        3,
+        (attempt) => setRetryAttempt(attempt)
       );
 
       if (result.products.length > 0) {
@@ -93,22 +225,22 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error("Error processing query:", error);
-      
-      // Show user-friendly error message
-      const isTimeout = error instanceof Error && error.message === 'Timeout';
-      const errorMessage = isTimeout 
-        ? 'El servidor está tardando en responder. Por favor, intenta de nuevo.'
-        : 'Hubo un error procesando tu consulta. Por favor, intenta de nuevo.';
-      
+
+      const isTimeout =
+        error instanceof Error && error.message === "Timeout";
+      const errorMessage = isTimeout
+        ? "El servidor está tardando en responder. Por favor, intenta de nuevo."
+        : "Hubo un error procesando tu consulta. Por favor, intenta de nuevo.";
+
       setError(errorMessage);
-      
-      // Auto-hide error after 5 seconds
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsLoading(false);
       setRetryAttempt(0);
     }
   };
+
+  // ── Render ────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto">
@@ -190,12 +322,28 @@ export default function ChatPage() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {products.map((product) => (
-                <ProductResult key={product._id} product={product} />
+                <ProductResult
+                  key={product._id}
+                  product={product}
+                  onAddFull={handleAddFull}
+                  onAddHalf={handleAddHalf}
+                  hasPendingHalf={!!pendingHalf}
+                  pendingHalfSize={pendingHalf?.size}
+                />
               ))}
             </div>
           </div>
         )}
       </div>
+
+      {/* Cart */}
+      <Cart
+        items={cart}
+        onRemoveItem={handleRemoveItem}
+        onUpdateQuantity={handleUpdateQuantity}
+        onPlaceOrder={handlePlaceOrder}
+        isOrdering={isOrdering}
+      />
 
       {/* Input Area */}
       <ChatInput
@@ -204,12 +352,19 @@ export default function ChatPage() {
         handleSubmit={handleSubmit}
         isLoading={isLoading}
       />
-      
+
       {/* Error Toast */}
       {error && (
-        <ErrorToast
-          message={error}
-          onClose={() => setError(null)}
+        <ErrorToast message={error} onClose={() => setError(null)} />
+      )}
+
+      {/* Order confirmation modal */}
+      {orderConfirmation && (
+        <OrderConfirmation
+          orderId={orderConfirmation.orderId}
+          total={orderConfirmation.total}
+          itemCount={orderConfirmation.itemCount}
+          onClose={() => setOrderConfirmation(null)}
         />
       )}
     </div>
