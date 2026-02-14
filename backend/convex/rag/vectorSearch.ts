@@ -19,6 +19,9 @@ export const searchProducts = action({
   handler: async (ctx, args): Promise<any[]> => {
     const embedding = await generateEmbedding(args.query);
 
+    //TODO remove
+    console.log("Generated embedding:", embedding);
+
     const results = await ctx.vectorSearch("products", "by_embedding", {
       vector: embedding,
       limit: args.limit ?? 10,
@@ -43,39 +46,27 @@ export const searchProducts = action({
   },
 });
 
-// Generate embedding using OpenAI (placeholder - requires API key)
+// Generate embedding using local lightweight_embeddings server
 async function generateEmbedding(text: string): Promise<number[]> {
-  // In production, use OpenAI API:
-  // const response = await fetch("https://api.openai.com/v1/embeddings", {
-  //   method: "POST",
-  //   headers: {
-  //     "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-  //     "Content-Type": "application/json",
-  //   },
-  //   body: JSON.stringify({
-  //     input: text,
-  //     model: "text-embedding-ada-002",
-  //   }),
-  // });
-  // const data = await response.json();
-  // return data.data[0].embedding;
+  const response = await fetch("http://zkg6bqjr-7860.use2.devtunnels.ms/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      input: [text],
+      model: "multilingual-e5-small",
+    }),
+  });
 
-  // For now, return a mock embedding (1536 dimensions for ada-002)
-  // This should be replaced with actual OpenAI call
-  const hash = simpleHash(text);
-  const embedding: number[] = [];
-  for (let i = 0; i < 1536; i++) {
-    embedding.push(Math.sin(hash + i) * 0.5 + 0.5);
+  if (!response.ok) {
+    throw new Error(`Embedding API error: ${response.status} ${response.statusText}`);
   }
+
+  const data = await response.json();
+  const embedding = data.data[0].embedding;
+
+  console.log(embedding);
+  
   return embedding;
-}
-
-function simpleHash(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-  return hash;
 }

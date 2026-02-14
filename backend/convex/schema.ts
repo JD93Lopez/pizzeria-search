@@ -30,7 +30,7 @@ export default defineSchema({
     .index("by_available", ["available"])
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
-      dimensions: 1536,
+      dimensions: 384,
       filterFields: ["category", "available"],
     }),
 

@@ -41,22 +41,23 @@ export const getAllProducts = internalMutation({
   },
 });
 
+// Generate embedding using local lightweight_embeddings server
 async function generateEmbedding(text: string): Promise<number[]> {
-  // Mock embedding generator - replace with OpenAI in production
-  const hash = simpleHash(text);
-  const embedding: number[] = [];
-  for (let i = 0; i < 1536; i++) {
-    embedding.push(Math.sin(hash + i) * 0.5 + 0.5);
-  }
-  return embedding;
-}
+  const response = await fetch("http://localhost:7860/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      input: [text],
+      model: "text",
+    }),
+  });
 
-function simpleHash(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
+  if (!response.ok) {
+    throw new Error(`Embedding API error: ${response.status} ${response.statusText}`);
   }
-  return hash;
+
+  const data = await response.json();
+  return data.data[0].embedding;
 }
