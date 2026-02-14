@@ -9,10 +9,11 @@ export default defineSchema({
       v.literal("pizza"),
       v.literal("bebida"),
       v.literal("postre"),
-      v.literal("combo")
+      v.literal("plato")
     ),
     size: v.optional(
       v.union(
+        v.literal("individual"),
         v.literal("pequeña"),
         v.literal("mediana"),
         v.literal("grande"),
@@ -30,7 +31,7 @@ export default defineSchema({
     .index("by_available", ["available"])
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
-      dimensions: 384,
+      dimensions: 1024,
       filterFields: ["category", "available"],
     }),
 

@@ -19,9 +19,6 @@ export const searchProducts = action({
   handler: async (ctx, args): Promise<any[]> => {
     const embedding = await generateEmbedding(args.query);
 
-    //TODO remove
-    console.log("Generated embedding:", embedding);
-
     const results = await ctx.vectorSearch("products", "by_embedding", {
       vector: embedding,
       limit: args.limit ?? 10,
@@ -48,25 +45,53 @@ export const searchProducts = action({
 
 // Generate embedding using local lightweight_embeddings server
 async function generateEmbedding(text: string): Promise<number[]> {
-  const response = await fetch("http://zkg6bqjr-7860.use2.devtunnels.ms/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      input: [text],
-      model: "multilingual-e5-small",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Embedding API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  const embedding = data.data[0].embedding;
-
-  console.log(embedding);
+  const maxRetries = 3;
+  const baseDelay = 1000; // 1 second base delay
   
-  return embedding;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch("http://zkg6bqjr-7860.use2.devtunnels.ms/v1/embeddings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          input: [text],
+          model: "multilingual-e5-large",
+        }),
+      });
+
+      if (!response.ok) {
+        const isLastAttempt = attempt === maxRetries;
+        const isRetryableError = response.status === 504 || response.status === 502 || response.status === 503;
+        
+        if (!isLastAttempt && isRetryableError) {
+          console.log(`Embedding API error ${response.status}, retrying (${attempt}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, baseDelay * attempt));
+          continue;
+        }
+        
+        throw new Error(`Embedding API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const embedding = data.data[0].embedding;
+
+      // console.log(embedding);
+      
+      return embedding;
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries;
+      
+      if (!isLastAttempt && (error instanceof TypeError || error.message.includes('fetch'))) {
+        console.log(`Network error on embedding request, retrying (${attempt}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, baseDelay * attempt));
+        continue;
+      }
+      
+      throw error;
+    }
+  }
+  
+  throw new Error('Max retries reached for embedding generation');
 }

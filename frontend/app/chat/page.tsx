@@ -7,12 +7,52 @@ import { Message } from "@/lib/types";
 import { MessageBubble } from "./components/Message";
 import { ProductResult } from "./components/ProductResult";
 import { ChatInput } from "./components/ChatInput";
+import { ErrorToast } from "./components/ErrorToast";
+
+// Helper function for API calls with timeout and retry
+const callWithRetry = async <T,>(
+  apiCall: () => Promise<T>,
+  timeoutMs: number = 2000,
+  maxRetries: number = 3,
+  onRetry?: (attempt: number) => void
+): Promise<T> => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout')), timeoutMs);
+      });
+      
+      const result = await Promise.race([apiCall(), timeoutPromise]);
+      return result;
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries;
+      const isTimeout = error instanceof Error && error.message === 'Timeout';
+      
+      if (isLastAttempt) {
+        throw error;
+      }
+      
+      // Notify about retry
+      if (onRetry) {
+        onRetry(attempt);
+      }
+      
+      // Wait before retry (exponential backoff)
+      const waitTime = Math.min(1000 * attempt, 3000);
+      console.log(`Intento ${attempt} falló, reintentando en ${waitTime}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+  throw new Error('Max retries reached');
+};
 
 export default function ChatPage() {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState<number>(0);
 
   const createThread = useMutation(api.agents.pizzaAgent.createThread);
   const processQuery = useAction(api.agents.pizzaAgent.processQuery);
@@ -36,20 +76,37 @@ export default function ChatPage() {
     const userMessage = input.trim();
     setInput("");
     setIsLoading(true);
+    setRetryAttempt(0);
+    setError(null);
 
     try {
-      const result = await processQuery({
-        query: userMessage,
-        threadId,
-      });
+      // Use timeout and retry logic
+      const result = await callWithRetry(
+        () => processQuery({ query: userMessage, threadId }),
+        2000, // 2 second timeout
+        3,    // 3 retry attempts
+        (attempt) => setRetryAttempt(attempt) // Update retry state
+      );
 
       if (result.products.length > 0) {
         setProducts(result.products);
       }
     } catch (error) {
       console.error("Error processing query:", error);
+      
+      // Show user-friendly error message
+      const isTimeout = error instanceof Error && error.message === 'Timeout';
+      const errorMessage = isTimeout 
+        ? 'El servidor está tardando en responder. Por favor, intenta de nuevo.'
+        : 'Hubo un error procesando tu consulta. Por favor, intenta de nuevo.';
+      
+      setError(errorMessage);
+      
+      // Auto-hide error after 5 seconds
+      setTimeout(() => setError(null), 5000);
     } finally {
       setIsLoading(false);
+      setRetryAttempt(0);
     }
   };
 
@@ -103,16 +160,23 @@ export default function ChatPage() {
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                <div
-                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                  style={{ animationDelay: "0.1s" }}
-                />
-                <div
-                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                  style={{ animationDelay: "0.2s" }}
-                />
+              <div className="flex items-center space-x-2">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                  <div
+                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: "0.1s" }}
+                  />
+                  <div
+                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: "0.2s" }}
+                  />
+                </div>
+                {retryAttempt > 0 && (
+                  <span className="text-xs text-gray-500 ml-2">
+                    Reintentando... ({retryAttempt}/3)
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -140,6 +204,14 @@ export default function ChatPage() {
         handleSubmit={handleSubmit}
         isLoading={isLoading}
       />
+      
+      {/* Error Toast */}
+      {error && (
+        <ErrorToast
+          message={error}
+          onClose={() => setError(null)}
+        />
+      )}
     </div>
   );
 }

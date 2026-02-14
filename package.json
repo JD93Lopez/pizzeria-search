@@ -16,12 +16,16 @@
     "build:frontend": "cd frontend && npm run build",
     "generate-catalog": "ts-node scripts/generate-catalog.ts",
     "seed-catalog": "ts-node scripts/seed-catalog.ts",
+    "reindex-embeddings": "ts-node scripts/reindex-embeddings.ts",
+    "reindex-help": "ts-node scripts/reindex-embeddings.ts -- --help",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "test": "node -e \"console.log('smoke test ok')\""
   },
   "devDependencies": {
     "concurrently": "^8.2.0",
+    "convex": "^1.15.0",
+    "dotenv": "^16.3.1",
     "eslint": "^8.50.0",
     "prettier": "^3.0.0",
     "ts-node": "^10.9.2",
