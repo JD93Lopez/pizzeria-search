@@ -47,4 +47,32 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }),
+
+  // Orders table
+  orders: defineTable({
+    threadId: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("confirmed"),
+      v.literal("cancelled")
+    ),
+    items: v.array(
+      v.object({
+        // "full" = pizza completa, "half" = pizza a mitades
+        type: v.union(v.literal("full"), v.literal("half")),
+        // For full: single product ID. For half: two product IDs
+        productIds: v.array(v.id("products")),
+        // Size of the pizza (both halves must match size)
+        size: v.optional(v.string()),
+        // Calculated price for this item
+        price: v.number(),
+        quantity: v.number(),
+      })
+    ),
+    total: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_thread", ["threadId"])
+    .index("by_status", ["status"]),
 });

@@ -21,6 +21,13 @@ export const api = {
     create: "products:create",
     createMany: "products:createMany",
   },
+  orders: {
+    create: "orders:create",
+    confirm: "orders:confirm",
+    cancel: "orders:cancel",
+    getById: "orders:getById",
+    getByThread: "orders:getByThread",
+  },
   rag: {
     vectorSearch: {
       searchProducts: "rag/vectorSearch:searchProducts",
