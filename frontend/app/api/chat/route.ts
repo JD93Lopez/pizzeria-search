@@ -54,57 +54,6 @@ TOTAL: $[suma exacta]
 Responde siempre en español, cálido pero ultra-conciso. El total visible es OBLIGATORIO tras cada acción.
 `;
 
-const KEYWORD_EXTRACTOR_PROMPT = `Eres un extractor de palabras clave para búsqueda de productos de pizzería.
-Tu única tarea: extraer las palabras clave más relevantes de la consulta del usuario para buscar productos.
-
-REGLAS:
-1. Extrae SOLO palabras que el usuario quiere encontrar en su nueva búsqueda no porque las menciona y ya sino lo que solicita
-2. Extrae SOLO palabras relacionadas con productos: nombres de pizzas, ingredientes, tamaños, tipos de bebidas, postres
-3. Ignora palabras como: quiero, busco, para, con, sin, también, además, me gustaría, etc.
-4. Mantén plurales/singulares según el contexto
-5. Si menciona tamaño (pequeña, mediana, grande, familiar), inclúyelo
-6. Responde SOLO con las palabras clave separadas por espacios, sin explicaciones
-
-EJEMPLOS:
-Usuario: "quiero una pizza margarita mediana y una coca cola"
-Respuesta: pizza margarita mediana coca cola
-
-Usuario: "me gustaría ver las pizzas con jamón y champiñones"
-Respuesta: pizza jamón champiñones
-
-Usuario: "tienes postres?"
-Respuesta: postres
-
-Ahora extrae las palabras clave de esta consulta:`;
-
-const CALCULATOR_PROMPT = `Eres una calculadora especializada en pedidos de pizzería.
-Tu única tarea: calcular precios exactos basándote en el historial de conversación y los productos disponibles.
-
-REGLAS PARA PIZZAS MITAD Y MITAD:
-- Precio = (precio_mitad1 + precio_mitad2) / 2
-- Redondea a 1 decimal
-- SOLO permitido si ambos sabores tienen el MISMO tamaño
-- Si no se especifica tamaño, NO lo calcules como mitad y mitad
-
-FORMATO DE RESPUESTA (JSON obligatorio):
-{
-  "items": [
-    {"producto": "nombre exacto", "cantidad": número, "precioUnitario": número, "subtotal": número}
-  ],
-  "total": número
-}
-
-IMPORTANTE:
-- Suma SOLO el producto elegido por el usuario, no los productos disponibles sin seleccionar por el usuario.
-- Al iniciar la conversación, el total es 0 y dejas items vacíos.
-- Usa los precios EXACTOS que encuentres en los productos proporcionados
-- Si un producto no tiene precio conocido, usa 0 y marca error: true
-- Calcula subtotales: cantidad * precioUnitario
-- Suma todos los subtotales para el total
-- NO inventes precios
-
-Responde SOLO el JSON, sin explicaciones adicionales.`;
-
 // Generate embedding locally (runs on your machine, reaches localhost:7860)
 async function generateEmbedding(text: string): Promise<number[]> {
   const maxRetries = 3;
@@ -157,98 +106,6 @@ async function generateEmbedding(text: string): Promise<number[]> {
   throw new Error("Max retries reached for embedding generation");
 }
 
-// Extract keywords from user query for cleaner search
-async function extractKeywords(userQuery: string): Promise<string> {
-  try {
-    const prompt = `${KEYWORD_EXTRACTOR_PROMPT}\n\nConsulta: "${userQuery}"\n\nPalabras clave:`;
-
-    const response = await fetch(OLLAMA_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        prompt,
-        stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Keyword extraction failed, using original query");
-      return userQuery;
-    }
-
-    const data = await response.json();
-    const keywords = data.response?.trim() || userQuery;
-    console.log(`[Keyword Extraction] Original: "${userQuery}" → Keywords: "${keywords}"`);
-    return keywords;
-  } catch (error) {
-    console.error("Error extracting keywords:", error);
-    return userQuery; // Fallback to original query
-  }
-}
-
-// Calculate prices and totals using Ollama
-async function calculatePrices(
-  products: any[],
-  conversationHistory: string
-): Promise<{ items: any[]; total: number; error?: boolean }> {
-  try {
-    const productsInfo = products
-      .map(
-        (p) =>
-          `- ${p.name} (${p.size || "N/A"}): $${p.price || 0} | Stock: ${p.quantity || 0}`
-      )
-      .join("\n");
-
-    const prompt = `${CALCULATOR_PROMPT}
-
-PRODUCTOS DISPONIBLES:
-${productsInfo}
-
-HISTORIAL DE CONVERSACIÓN:
-${conversationHistory}
-
-Analiza el historial y calcula el pedido actual en formato JSON:`;
-
-    const response = await fetch(OLLAMA_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        prompt,
-        stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Price calculation failed");
-      return { items: [], total: 0, error: true };
-    }
-    
-    
-    const data = await response.json();
-    const responseText = data.response?.trim() || "{}";
-    
-    // Extract JSON from response (might have markdown code blocks)
-    let jsonText = responseText;
-    const jsonMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[1];
-    } else if (responseText.includes("{") && responseText.includes("}")) {
-      const start = responseText.indexOf("{");
-      const end = responseText.lastIndexOf("}") + 1;
-      jsonText = responseText.substring(start, end);
-    }
-
-    const calculation = JSON.parse(jsonText);
-    console.log("[Price Calculator] Result:", calculation);
-    return calculation;
-  } catch (error) {
-    console.error("Error calculating prices:", error);
-    return { items: [], total: 0, error: true };
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { query, threadId } = await request.json();
@@ -267,15 +124,12 @@ export async function POST(request: NextRequest) {
       content: query,
     });
 
-    // 2. Extract keywords for better search
-    const keywords = await extractKeywords(query);
-
-    // 3. Generate embedding locally using keywords (localhost:7860)
+    // 2. Generate embedding locally (localhost:7860)
     let products: any[] = [];
     try {
-      const embedding = await generateEmbedding(keywords);
+      const embedding = await generateEmbedding(query);
 
-      // 4. Vector search in Convex with the pre-computed embedding
+      // 3. Vector search in Convex with the pre-computed embedding
       products = await convex.action(
         api.rag.vectorSearch.searchByEmbedding,
         { embedding, limit: 8 }
@@ -284,25 +138,12 @@ export async function POST(request: NextRequest) {
       console.error("Embedding/search failed:", e);
     }
 
-    // 5. Get conversation history from Convex
+    // 4. Get conversation history from Convex
     const history = await convex.query(api.agents.pizzaAgent.getMessages, {
       threadId,
     });
 
-    // 6. Calculate prices and totals
-    let calculation: { items: any[]; total: number; error?: boolean } = { 
-      items: [], 
-      total: 0, 
-      error: false 
-    };
-    if (products.length > 0 && (history as any[]).length > 0) {
-      const historyText = (history as any[])
-        .map(msg => `${msg.role === "user" ? "CLIENTE" : "ASISTENTE"}: ${msg.content}`)
-        .join("\n");
-      calculation = await calculatePrices(products, historyText);
-    }
-
-    // 7. Build concatenated prompt with full context (for /generate endpoint)
+    // 5. Build concatenated prompt with full context (for /generate endpoint)
     let fullPrompt = `${SYSTEM_PROMPT}\n\n`;
 
     // Add conversation history (limit to last 20 messages)
@@ -325,26 +166,15 @@ export async function POST(request: NextRequest) {
             `${i + 1}. "${p.name}" - $${p.price} | Categoría: ${p.category} | Tamaño: ${p.size || "N/A"} | Disponible: ${p.available ? "Sí" : "No"} | Stock: ${p.quantity} unidades | Ingredientes: ${p.ingredients.join(", ")} | Relevancia: ${((p.score || 0) * 100).toFixed(0)}%`
         )
         .join("\n");
-    //   console.log("Productos encontrados para el prompt:\n" + productInfo);
+      console.log("Productos encontrados para el prompt:\n" + productInfo);
         fullPrompt += productInfo + "\n\n";
       fullPrompt += "=== FIN CATÁLOGO ===\n\n";
-    }
-
-    // Add calculation results if available
-    if (calculation.items.length > 0 && !calculation.error) {
-      fullPrompt += "=== RESUMEN DE PEDIDO CALCULADO ===\n";
-      fullPrompt += "Tu pedido actual:\n";
-      for (const item of calculation.items) {
-        fullPrompt += `• ${item.cantidad}x ${item.producto} → $${item.precioUnitario} c/u = $${item.subtotal}\n`;
-      }
-      fullPrompt += `\nTOTAL: $${calculation.total}\n`;
-      fullPrompt += "=== FIN RESUMEN ===\n\n";
     }
 
     // Add current user query
     fullPrompt += `CLIENTE: ${query}\n\nASISTENTE:`;
 
-    // 8. Call Ollama /generate endpoint with concatenated prompt
+    // 6. Call Ollama /generate endpoint with concatenated prompt
     let assistantResponse: string;
     try {
       const ollamaResponse = await fetch(OLLAMA_URL, {
@@ -390,7 +220,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 9. Save assistant response in Convex
+    // 7. Save assistant response in Convex
     await convex.mutation(api.agents.pizzaAgent.saveMessage, {
       threadId,
       role: "assistant",
