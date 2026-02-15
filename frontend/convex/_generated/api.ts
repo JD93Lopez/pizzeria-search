@@ -11,6 +11,7 @@ export const api = {
       createThread: "agents/pizzaAgent:createThread",
       getMessages: "agents/pizzaAgent:getMessages",
       saveMessage: "agents/pizzaAgent:saveMessage",
+      processChatMessage: "agents/pizzaAgent:processChatMessage",
     },
   },
   products: {

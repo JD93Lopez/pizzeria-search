@@ -43,19 +43,19 @@ Responde siempre en español, cálido pero ultra-conciso. El total visible es OB
 `;
 
 // Process complete chat message (orchestrates entire flow)
+// Note: Embedding is generated in frontend (localhost:7860) and passed here
 export const processChatMessage = action({
   args: {
     query: v.string(),
     threadId: v.string(),
+    embedding: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
-    const { query, threadId } = args;
+    const { query, threadId, embedding } = args;
 
     // Get environment variables
     const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
     const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openrouter/aurora-alpha";
-    const EMBEDDINGS_URL = process.env.EMBEDDINGS_URL || "http://localhost:7860/v1/embeddings";
-    const EMBEDDINGS_MODEL = process.env.EMBEDDINGS_MODEL || "multilingual-e5-large";
 
     if (!OPENROUTER_API_KEY) {
       throw new Error("OPENROUTER_API_KEY not configured in backend environment");
@@ -68,38 +68,25 @@ export const processChatMessage = action({
       content: query,
     });
 
-    // 2. Generate embedding
+    // 2. Search products with pre-computed embedding (if provided)
     let products: any[] = [];
-    try {
-      const embeddingResponse = await fetch(EMBEDDINGS_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          input: [query],
-          model: EMBEDDINGS_MODEL,
-        }),
-      });
-
-      if (embeddingResponse.ok) {
-        const embeddingData = await embeddingResponse.json();
-        const embedding = embeddingData.data[0].embedding;
-
-        // 3. Search products with vector search
+    if (embedding) {
+      try {
         products = await ctx.runAction(api.rag.vectorSearch.searchByEmbedding, {
           embedding,
           limit: 8,
         });
+      } catch (e) {
+        console.error("Vector search failed:", e);
       }
-    } catch (e) {
-      console.error("Embedding/search failed:", e);
     }
 
-    // 4. Get conversation history
+    // 3. Get conversation history
     const history = await ctx.runQuery(api.agents.pizzaAgent.getMessages, {
       threadId,
     });
 
-    // 5. Prepare messages for OpenRouter
+    // 4. Prepare messages for OpenRouter
     const recentHistory = history.slice(-20);
     const messages: any[] = [
       {
@@ -126,7 +113,7 @@ export const processChatMessage = action({
       },
     ];
 
-    // 6. Call OpenRouter API
+    // 5. Call OpenRouter API
     let assistantResponse: string;
     try {
       const response = await fetch(
@@ -158,7 +145,7 @@ export const processChatMessage = action({
 
       const data = await response.json();
       assistantResponse =
-        data.choices[0]?.message?.content?.trim() ||
+        (data as any).choices[0]?.message?.content?.trim() ||
         "Lo siento, no pude generar una respuesta.";
     } catch (error: any) {
       console.error("OpenRouter call failed:", error);
@@ -180,7 +167,7 @@ export const processChatMessage = action({
       }
     }
 
-    // 7. Save assistant response
+    // 6. Save assistant response
     await ctx.runMutation(api.agents.pizzaAgent.saveMessage, {
       threadId,
       role: "assistant",
