@@ -31,7 +31,8 @@ export const reindexAll = internalAction({
       const product = products[i];
       
       try {
-        const text = `${product.name} ${product.description} ${product.ingredients.join(" ")} ${product.tags.join(" ")}`;
+        // const text = `${product.name} ${product.description} ${product.ingredients.join(" ")} ${product.tags.join(" ")}`;
+        const text = `${product.name}`;
         const embedding = await generateEmbedding(text);
         
         await ctx.runMutation(internal.rag.productIndexer.indexProduct, {
