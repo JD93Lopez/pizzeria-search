@@ -9,7 +9,6 @@ export const api = {
   agents: {
     pizzaAgent: {
       createThread: "agents/pizzaAgent:createThread",
-      processQuery: "agents/pizzaAgent:processQuery", 
       getMessages: "agents/pizzaAgent:getMessages",
       saveMessage: "agents/pizzaAgent:saveMessage",
     },
@@ -34,7 +33,10 @@ export const api = {
   },
   rag: {
     vectorSearch: {
-      searchProducts: "rag/vectorSearch:searchProducts",
+      searchByEmbedding: "rag/vectorSearch:searchByEmbedding",
+    },
+    productIndexer: {
+      indexProductPublic: "rag/productIndexer:indexProductPublic",
     },
   },
 } as any;

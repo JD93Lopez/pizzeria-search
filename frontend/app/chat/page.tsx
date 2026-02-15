@@ -1,75 +1,21 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useMutation, useQuery, useAction } from "convex/react";
+import { useEffect, useState, useRef } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Message, Product, CartItem, CartItemHalf } from "@/lib/types";
+import { Message } from "@/lib/types";
 import { MessageBubble } from "./components/Message";
-import { ProductResult } from "./components/ProductResult";
 import { ChatInput } from "./components/ChatInput";
 import { ErrorToast } from "./components/ErrorToast";
-import { Cart } from "./components/Cart";
-import { OrderConfirmation } from "./components/OrderConfirmation";
-
-// Helper function for API calls with timeout and retry
-const callWithRetry = async <T,>(
-  apiCall: () => Promise<T>,
-  timeoutMs: number = 2000,
-  maxRetries: number = 3,
-  onRetry?: (attempt: number) => void
-): Promise<T> => {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Timeout")), timeoutMs);
-      });
-
-      const result = await Promise.race([apiCall(), timeoutPromise]);
-      return result;
-    } catch (error) {
-      const isLastAttempt = attempt === maxRetries;
-
-      if (isLastAttempt) {
-        throw error;
-      }
-
-      // Notify about retry
-      if (onRetry) {
-        onRetry(attempt);
-      }
-
-      // Wait before retry (exponential backoff)
-      const waitTime = Math.min(1000 * attempt, 3000);
-      console.log(`Intento ${attempt} falló, reintentando en ${waitTime}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
-    }
-  }
-  throw new Error("Max retries reached");
-};
-
-let cartIdCounter = 0;
-const nextCartId = () => `cart-${++cartIdCounter}-${Date.now()}`;
 
 export default function ChatPage() {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [retryAttempt, setRetryAttempt] = useState<number>(0);
-
-  // Cart state
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isOrdering, setIsOrdering] = useState(false);
-  const [orderConfirmation, setOrderConfirmation] = useState<{
-    orderId: string;
-    total: number;
-    itemCount: number;
-  } | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const createThread = useMutation(api.agents.pizzaAgent.createThread);
-  const processQuery = useAction(api.agents.pizzaAgent.processQuery);
-  const createOrder = useMutation(api.orders.create);
   const messages = useQuery(
     api.agents.pizzaAgent.getMessages,
     threadId ? { threadId } : "skip"
@@ -83,124 +29,10 @@ export default function ChatPage() {
     initThread();
   }, [createThread]);
 
-  // ── Cart helpers ──────────────────────────────────────────────
-
-  const pendingHalf = cart.find(
-    (item): item is CartItemHalf =>
-      item.type === "half" && !item.secondHalf
-  );
-
-  const handleAddFull = useCallback((product: Product) => {
-    setCart((prev) => [
-      ...prev,
-      { id: nextCartId(), type: "full", product, quantity: 1 },
-    ]);
-  }, []);
-
-  const handleAddHalf = useCallback(
-    (product: Product) => {
-      setCart((prev) => {
-        // Look for existing pending half with matching size
-        const pendingIdx = prev.findIndex(
-          (item) =>
-            item.type === "half" &&
-            !item.secondHalf &&
-            item.size === (product.size ?? "mediana")
-        );
-
-        if (pendingIdx !== -1) {
-          // Complete the pending half
-          const updated = [...prev];
-          const pending = updated[pendingIdx] as CartItemHalf;
-          updated[pendingIdx] = { ...pending, secondHalf: product };
-          return updated;
-        }
-
-        // Create a new pending half
-        return [
-          ...prev,
-          {
-            id: nextCartId(),
-            type: "half",
-            firstHalf: product,
-            secondHalf: undefined,
-            size: product.size ?? "mediana",
-            quantity: 1,
-          } as CartItemHalf,
-        ];
-      });
-    },
-    []
-  );
-
-  const handleRemoveItem = useCallback((id: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  const handleUpdateQuantity = useCallback((id: string, quantity: number) => {
-    setCart((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
-    );
-  }, []);
-
-  const handlePlaceOrder = useCallback(async () => {
-    if (!threadId) return;
-    setIsOrdering(true);
-
-    try {
-      const orderItems = cart
-        .filter(
-          (item) =>
-            item.type === "full" ||
-            (item.type === "half" && item.secondHalf)
-        )
-        .map((item) => {
-          if (item.type === "full") {
-            return {
-              type: "full" as const,
-              productIds: [item.product._id],
-              size: item.product.size,
-              price: item.product.price * item.quantity,
-              quantity: item.quantity,
-            };
-          }
-          // half with both halves
-          const half = item as CartItemHalf;
-          const avgPrice =
-            (half.firstHalf.price + half.secondHalf!.price) / 2;
-          return {
-            type: "half" as const,
-            productIds: [half.firstHalf._id, half.secondHalf!._id],
-            size: half.size,
-            price: avgPrice * half.quantity,
-            quantity: half.quantity,
-          };
-        });
-
-      const total = orderItems.reduce((s, i) => s + i.price, 0);
-
-      const orderId = await createOrder({
-        threadId,
-        items: orderItems,
-        total,
-      });
-
-      setOrderConfirmation({
-        orderId: orderId as string,
-        total,
-        itemCount: orderItems.length,
-      });
-      setCart([]);
-    } catch (err) {
-      console.error("Error placing order:", err);
-      setError("No se pudo crear el pedido. Intenta de nuevo.");
-      setTimeout(() => setError(null), 5000);
-    } finally {
-      setIsOrdering(false);
-    }
-  }, [cart, threadId, createOrder]);
-
-  // ── Chat submit ───────────────────────────────────────────────
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,72 +41,65 @@ export default function ChatPage() {
     const userMessage = input.trim();
     setInput("");
     setIsLoading(true);
-    setRetryAttempt(0);
     setError(null);
 
     try {
-      const result = await callWithRetry(
-        () => processQuery({ query: userMessage, threadId }),
-        2000,
-        3,
-        (attempt) => setRetryAttempt(attempt)
-      );
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: userMessage, threadId }),
+      });
 
-      if (result.products.length > 0) {
-        setProducts(result.products);
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
       }
-    } catch (error) {
-      console.error("Error processing query:", error);
 
-      const isTimeout =
-        error instanceof Error && error.message === "Timeout";
-      const errorMessage = isTimeout
-        ? "El servidor está tardando en responder. Por favor, intenta de nuevo."
-        : "Hubo un error procesando tu consulta. Por favor, intenta de nuevo.";
-
-      setError(errorMessage);
-      setTimeout(() => setError(null), 5000);
+      // Response is saved by the API route; Convex useQuery will pick it up reactively
+      await response.json();
+    } catch (err) {
+      console.error("Error processing query:", err);
+      setError(
+        "Hubo un error procesando tu consulta. Verifica que Ollama esté corriendo e intenta de nuevo."
+      );
+      setTimeout(() => setError(null), 7000);
     } finally {
       setIsLoading(false);
-      setRetryAttempt(0);
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────
-
   return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto">
+    <div className="flex flex-col h-screen max-w-3xl mx-auto">
       {/* Header */}
       <header className="bg-pizza-red text-white p-4 shadow-lg">
-        <h1 className="text-2xl font-bold text-center">🍕 Pizzeria Chat</h1>
+        <h1 className="text-2xl font-bold text-center">🍕 Pizzería Chat</h1>
         <p className="text-center text-sm opacity-90">
-          Tu asistente para pedidos
+          Escríbeme lo que quieras pedir
         </p>
       </header>
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Welcome message */}
-        {(!messages || messages.length === 0) && (
-          <div className="text-center py-8">
+        {(!messages || messages.length === 0) && !isLoading && (
+          <div className="text-center py-12">
             <span className="text-6xl mb-4 block">🍕</span>
             <h2 className="text-xl font-semibold text-gray-700 mb-2">
               ¡Bienvenido a nuestra pizzería!
             </h2>
-            <p className="text-gray-500 mb-4">
-              Soy tu asistente virtual. ¿En qué puedo ayudarte hoy?
+            <p className="text-gray-500 mb-6">
+              Soy tu asistente virtual. Escríbeme lo que deseas ordenar.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {[
-                "Ver pizzas disponibles",
-                "Pizza grande de 2 sabores",
-                "Quiero una hawaiana",
-                "¿Qué combos tienen?",
+                "¿Qué pizzas tienen?",
+                "Quiero una pizza hawaiana grande",
+                "¿Tienen postres?",
+                "Quiero una mitad pepperoni y mitad mexicana",
               ].map((suggestion) => (
                 <button
                   key={suggestion}
                   onClick={() => setInput(suggestion)}
-                  className="bg-white border border-pizza-orange text-pizza-orange px-3 py-1 rounded-full text-sm hover:bg-pizza-orange hover:text-white transition-colors"
+                  className="bg-white border border-pizza-orange text-pizza-orange px-3 py-1.5 rounded-full text-sm hover:bg-pizza-orange hover:text-white transition-colors"
                 >
                   {suggestion}
                 </button>
@@ -304,46 +129,16 @@ export default function ChatPage() {
                     style={{ animationDelay: "0.2s" }}
                   />
                 </div>
-                {retryAttempt > 0 && (
-                  <span className="text-xs text-gray-500 ml-2">
-                    Reintentando... ({retryAttempt}/3)
-                  </span>
-                )}
+                <span className="text-xs text-gray-500 ml-2">
+                  Pensando...
+                </span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Product results */}
-        {products.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-sm font-semibold text-gray-500 mb-2">
-              Productos encontrados:
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {products.map((product) => (
-                <ProductResult
-                  key={product._id}
-                  product={product}
-                  onAddFull={handleAddFull}
-                  onAddHalf={handleAddHalf}
-                  hasPendingHalf={!!pendingHalf}
-                  pendingHalfSize={pendingHalf?.size}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        <div ref={messagesEndRef} />
       </div>
-
-      {/* Cart */}
-      <Cart
-        items={cart}
-        onRemoveItem={handleRemoveItem}
-        onUpdateQuantity={handleUpdateQuantity}
-        onPlaceOrder={handlePlaceOrder}
-        isOrdering={isOrdering}
-      />
 
       {/* Input Area */}
       <ChatInput
@@ -356,16 +151,6 @@ export default function ChatPage() {
       {/* Error Toast */}
       {error && (
         <ErrorToast message={error} onClose={() => setError(null)} />
-      )}
-
-      {/* Order confirmation modal */}
-      {orderConfirmation && (
-        <OrderConfirmation
-          orderId={orderConfirmation.orderId}
-          total={orderConfirmation.total}
-          itemCount={orderConfirmation.itemCount}
-          onClose={() => setOrderConfirmation(null)}
-        />
       )}
     </div>
   );

@@ -4,6 +4,22 @@ interface MessageBubbleProps {
   message: Message;
 }
 
+// Simple markdown-like rendering for bold, line breaks
+function renderContent(text: string) {
+  // Split by bold markers **text**
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-semibold">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
@@ -16,7 +32,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             : "bg-gray-100 text-gray-800 rounded-bl-md"
         }`}
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        <div className="whitespace-pre-wrap leading-relaxed">
+          {renderContent(message.content)}
+        </div>
         <span
           className={`text-xs mt-1 block ${
             isUser ? "text-white/70" : "text-gray-400"

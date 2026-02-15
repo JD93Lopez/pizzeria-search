@@ -15,7 +15,7 @@ export interface Product {
   flavors?: string[];
   price: number;
   available: boolean;
-  quantity: number; // Cantidad disponible en inventario
+  quantity: number;
   ingredients: string[];
   tags: string[];
   score?: number;
@@ -23,39 +23,4 @@ export interface Product {
 
 export interface AgentResponse {
   response: string;
-  products: Product[];
-  intent: {
-    type: string;
-    searchTerm: string;
-    category?: string;
-    size?: string;
-    flavors?: string[];
-  };
-}
-
-// Cart types
-export interface CartItemFull {
-  id: string;
-  type: "full";
-  product: Product;
-  quantity: number;
-}
-
-export interface CartItemHalf {
-  id: string;
-  type: "half";
-  firstHalf: Product;
-  secondHalf?: Product; // undefined = waiting for the other half
-  size: string;
-  quantity: number;
-}
-
-export type CartItem = CartItemFull | CartItemHalf;
-
-export interface OrderItem {
-  type: "full" | "half";
-  productIds: string[];
-  size?: string;
-  price: number;
-  quantity: number;
 }
