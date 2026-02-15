@@ -9,19 +9,21 @@ export const list = query({
         v.literal("pizza"),
         v.literal("bebida"),
         v.literal("postre"),
-        v.literal("combo")
+        v.literal("plato")
       )
     ),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("products");
-
     if (args.category) {
-      q = q.withIndex("by_category", (q) => q.eq("category", args.category!));
+      const products = await ctx.db
+        .query("products")
+        .withIndex("by_category", (q) => q.eq("category", args.category!))
+        .collect();
+      return args.limit ? products.slice(0, args.limit) : products;
     }
 
-    const products = await q.collect();
+    const products = await ctx.db.query("products").collect();
     return args.limit ? products.slice(0, args.limit) : products;
   },
 });
@@ -52,7 +54,7 @@ export const create = mutation({
       v.literal("pizza"),
       v.literal("bebida"),
       v.literal("postre"),
-      v.literal("combo")
+      v.literal("plato")
     ),
     size: v.optional(
       v.union(
@@ -65,6 +67,7 @@ export const create = mutation({
     flavors: v.optional(v.array(v.string())),
     price: v.number(),
     available: v.boolean(),
+    quantity: v.number(), // Cantidad disponible en inventario
     ingredients: v.array(v.string()),
     tags: v.array(v.string()),
     embedding: v.optional(v.array(v.float64())),
@@ -85,7 +88,7 @@ export const createMany = mutation({
           v.literal("pizza"),
           v.literal("bebida"),
           v.literal("postre"),
-          v.literal("combo")
+          v.literal("plato")
         ),
         size: v.optional(
           v.union(
@@ -98,6 +101,7 @@ export const createMany = mutation({
         flavors: v.optional(v.array(v.string())),
         price: v.number(),
         available: v.boolean(),
+        quantity: v.number(), // Cantidad disponible en inventario
         ingredients: v.array(v.string()),
         tags: v.array(v.string()),
         embedding: v.optional(v.array(v.float64())),
@@ -125,7 +129,7 @@ export const update = mutation({
         v.literal("pizza"),
         v.literal("bebida"),
         v.literal("postre"),
-        v.literal("combo")
+        v.literal("plato")
       )
     ),
     size: v.optional(
@@ -139,6 +143,7 @@ export const update = mutation({
     flavors: v.optional(v.array(v.string())),
     price: v.optional(v.number()),
     available: v.optional(v.boolean()),
+    quantity: v.optional(v.number()), // Cantidad disponible en inventario
     ingredients: v.optional(v.array(v.string())),
     tags: v.optional(v.array(v.string())),
     embedding: v.optional(v.array(v.float64())),
@@ -167,5 +172,24 @@ export const clearAll = mutation({
       await ctx.db.delete(product._id);
     }
     return products.length;
+  },
+});
+
+// Mutation: Set all products quantity to a specific value (for testing)
+export const setAllQuantities = mutation({
+  args: { quantity: v.number() },
+  handler: async (ctx, args) => {
+    const products = await ctx.db.query("products").collect();
+    let updated = 0;
+    
+    for (const product of products) {
+      await ctx.db.patch(product._id, { 
+        quantity: args.quantity,
+        available: args.quantity > 0 
+      });
+      updated++;
+    }
+    
+    return { updated, totalProducts: products.length };
   },
 });

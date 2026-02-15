@@ -6,7 +6,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
-type Category = "pizza" | "bebida" | "postre" | "combo";
+type Category = "pizza" | "bebida" | "postre" | "plato";
 type Size = "pequeña" | "mediana" | "grande" | "familiar";
 
 interface Product {
@@ -17,6 +17,7 @@ interface Product {
   flavors?: string[];
   price: number;
   available: boolean;
+  quantity: number; // Cantidad disponible en inventario
   ingredients: string[];
   tags: string[];
 }
@@ -123,6 +124,7 @@ function generatePizzas(): Product[] {
         flavors: [base.name.toLowerCase()],
         price,
         available: Math.random() > 0.05,
+        quantity: Math.floor(Math.random() * 20) + 5, // Entre 5 y 25 unidades
         ingredients: base.ingredients,
         tags: [...base.tags, sizeInfo.size],
       });
@@ -149,6 +151,7 @@ function generatePizzas(): Product[] {
           flavors: [flavor1.toLowerCase(), flavor2.toLowerCase()],
           price,
           available: Math.random() > 0.1,
+          quantity: Math.floor(Math.random() * 15) + 3, // Entre 3 y 18 unidades
           ingredients: [...new Set([...base1.ingredients, ...base2.ingredients])],
           tags: ["dos sabores", "especial", sizeInfo.size],
         });
@@ -170,6 +173,7 @@ function generateBebidas(): Product[] {
         category: "bebida",
         price: bebida.price,
         available: Math.random() > 0.02,
+        quantity: Math.floor(Math.random() * 50) + 20, // Entre 20 y 70 unidades
         ingredients: bebida.ingredients,
         tags: [...bebida.tags, variant],
       });
@@ -182,6 +186,7 @@ function generateBebidas(): Product[] {
           category: "bebida",
           price: bebida.price + 25,
           available: Math.random() > 0.05,
+          quantity: Math.floor(Math.random() * 30) + 10, // Entre 10 y 40 unidades
           ingredients: bebida.ingredients,
           tags: [...bebida.tags, variant, "familiar"],
         });
@@ -204,6 +209,7 @@ function generatePostres(): Product[] {
           category: "postre",
           price: postre.price,
           available: Math.random() > 0.05,
+          quantity: Math.floor(Math.random() * 20) + 5, // Entre 5 y 25 unidades
           ingredients: postre.ingredients,
           tags: [...postre.tags, variant],
         });
@@ -215,6 +221,7 @@ function generatePostres(): Product[] {
         category: "postre",
         price: postre.price,
         available: Math.random() > 0.05,
+        quantity: Math.floor(Math.random() * 25) + 8, // Entre 8 y 33 unidades
         ingredients: postre.ingredients,
         tags: postre.tags,
       });
@@ -225,7 +232,7 @@ function generatePostres(): Product[] {
 }
 
 function generateCombos(pizzas: Product[]): Product[] {
-  const combos: Product[] = [];
+  const platos: Product[] = [];
   const pizzaNames = PIZZA_BASES.map(b => b.name);
 
   for (const template of COMBO_TEMPLATES) {
@@ -240,20 +247,21 @@ function generateCombos(pizzas: Product[]): Product[] {
       const basePrice = pizza.price + (template.drinks * 30) + (template.dessert ? 45 : 0);
       const finalPrice = Math.round(basePrice * (1 - template.discount));
 
-      combos.push({
+      platos.push({
         name: `${template.name} ${pizzaName}`,
         description: `${template.name}: Pizza ${pizzaName} ${template.pizzaSize} + ${template.drinks} bebidas${template.dessert ? " + postre" : ""}`,
-        category: "combo",
+        category: "plato",
         size: template.pizzaSize as Size,
         price: finalPrice,
         available: Math.random() > 0.05,
+        quantity: Math.floor(Math.random() * 10) + 2, // Entre 2 y 12 unidades (menos stock para combos)
         ingredients: pizza.ingredients,
-        tags: ["combo", "promoción", template.pizzaSize, pizzaName.toLowerCase()],
+        tags: ["plato", "promoción", template.pizzaSize, pizzaName.toLowerCase()],
       });
     }
   }
 
-  return combos;
+  return platos;
 }
 
 function generateCatalog(): Product[] {
@@ -268,10 +276,10 @@ function generateCatalog(): Product[] {
   const postres = generatePostres();
   console.log(`✓ Postres generados: ${postres.length}`);
 
-  const combos = generateCombos(pizzas);
-  console.log(`✓ Combos generados: ${combos.length}`);
+  const platos = generateCombos(pizzas);
+  console.log(`✓ Platos generados: ${platos.length}`);
 
-  const catalog = [...pizzas, ...bebidas, ...postres, ...combos];
+  const catalog = [...pizzas, ...bebidas, ...postres, ...platos];
   console.log(`\n📦 Total de productos: ${catalog.length}`);
 
   return catalog;
@@ -298,7 +306,7 @@ const stats = {
     pizza: catalog.filter(p => p.category === "pizza").length,
     bebida: catalog.filter(p => p.category === "bebida").length,
     postre: catalog.filter(p => p.category === "postre").length,
-    combo: catalog.filter(p => p.category === "combo").length,
+    plato: catalog.filter(p => p.category === "plato").length,
   },
   available: catalog.filter(p => p.available).length,
   priceRange: {

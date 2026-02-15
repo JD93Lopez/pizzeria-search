@@ -23,6 +23,7 @@ export default defineSchema({
     flavors: v.optional(v.array(v.string())),
     price: v.number(),
     available: v.boolean(),
+    quantity: v.optional(v.number()), // Cantidad disponible en inventario
     ingredients: v.array(v.string()),
     tags: v.array(v.string()),
     embedding: v.optional(v.array(v.float64())),

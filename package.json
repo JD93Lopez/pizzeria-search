@@ -18,6 +18,7 @@
     "seed-catalog": "ts-node scripts/seed-catalog.ts",
     "reindex-embeddings": "ts-node scripts/reindex-embeddings.ts",
     "reindex-help": "ts-node scripts/reindex-embeddings.ts -- --help",
+    "set-test-quantities": "ts-node scripts/set-test-quantities.ts",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "test": "node -e \"console.log('smoke test ok')\""

@@ -61,7 +61,10 @@ export function ProductResult({
             ${product.price.toFixed(2)}
           </p>
           {product.available ? (
-            <span className="text-xs text-green-600">✓ Disponible</span>
+            <div>
+              <span className="text-xs text-green-600">✓ Disponible</span>
+              <p className="text-xs text-gray-500">Stock: {product.quantity}</p>
+            </div>
           ) : (
             <span className="text-xs text-red-600">✗ Agotado</span>
           )}

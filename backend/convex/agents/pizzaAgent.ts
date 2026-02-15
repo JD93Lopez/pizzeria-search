@@ -256,7 +256,7 @@ function extractSize(
 }
 
 function formatProductResponse(products: any[], intent: any): string {
-  const category = intent.category || "productos";
+  const category = intent.category || "producto";
   const header = `Encontré ${products.length} ${category}${products.length > 1 ? "s" : ""} para ti:\n\n`;
   return header + formatProductList(products);
 }

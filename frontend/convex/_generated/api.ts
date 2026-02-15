@@ -20,6 +20,10 @@ export const api = {
     getByIds: "products:getByIds",
     create: "products:create",
     createMany: "products:createMany",
+    update: "products:update",
+    remove: "products:remove",
+    clearAll: "products:clearAll",
+    setAllQuantities: "products:setAllQuantities",
   },
   orders: {
     create: "orders:create",

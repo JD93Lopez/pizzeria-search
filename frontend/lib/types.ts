@@ -15,6 +15,7 @@ export interface Product {
   flavors?: string[];
   price: number;
   available: boolean;
+  quantity: number; // Cantidad disponible en inventario
   ingredients: string[];
   tags: string[];
   score?: number;
