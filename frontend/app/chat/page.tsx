@@ -15,9 +15,9 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const createThread = useMutation(api.agents.pizzaAgent.createThread);
+  const createThread = useMutation(api.agents.threadService.createThread);
   const messages = useQuery(
-    api.agents.pizzaAgent.getMessages,
+    api.agents.messageService.getMessages,
     threadId ? { threadId } : "skip"
   );
 
@@ -59,7 +59,7 @@ export default function ChatPage() {
     } catch (err) {
       console.error("Error processing query:", err);
       setError(
-        "Hubo un error procesando tu consulta. Verifica que Ollama esté corriendo e intenta de nuevo."
+        "Hubo un error procesando tu consulta. Verifica la conexión e intenta de nuevo."
       );
       setTimeout(() => setError(null), 7000);
     } finally {

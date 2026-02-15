@@ -1,17 +1,11 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { categoryValidator, sizeValidator, productFields } from "./shared/validators";
 
 // Query: Get all products
 export const list = query({
   args: {
-    category: v.optional(
-      v.union(
-        v.literal("pizza"),
-        v.literal("bebida"),
-        v.literal("postre"),
-        v.literal("plato")
-      )
-    ),
+    category: v.optional(categoryValidator),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -47,31 +41,7 @@ export const getByIds = query({
 
 // Mutation: Create a product
 export const create = mutation({
-  args: {
-    name: v.string(),
-    description: v.string(),
-    category: v.union(
-      v.literal("pizza"),
-      v.literal("bebida"),
-      v.literal("postre"),
-      v.literal("plato")
-    ),
-    size: v.optional(
-      v.union(
-        v.literal("pequeña"),
-        v.literal("mediana"),
-        v.literal("grande"),
-        v.literal("familiar")
-      )
-    ),
-    flavors: v.optional(v.array(v.string())),
-    price: v.number(),
-    available: v.boolean(),
-    quantity: v.number(), // Cantidad disponible en inventario
-    ingredients: v.array(v.string()),
-    tags: v.array(v.string()),
-    embedding: v.optional(v.array(v.float64())),
-  },
+  args: productFields,
   handler: async (ctx, args) => {
     return await ctx.db.insert("products", args);
   },
@@ -80,33 +50,7 @@ export const create = mutation({
 // Mutation: Create many products (batch)
 export const createMany = mutation({
   args: {
-    products: v.array(
-      v.object({
-        name: v.string(),
-        description: v.string(),
-        category: v.union(
-          v.literal("pizza"),
-          v.literal("bebida"),
-          v.literal("postre"),
-          v.literal("plato")
-        ),
-        size: v.optional(
-          v.union(
-            v.literal("pequeña"),
-            v.literal("mediana"),
-            v.literal("grande"),
-            v.literal("familiar")
-          )
-        ),
-        flavors: v.optional(v.array(v.string())),
-        price: v.number(),
-        available: v.boolean(),
-        quantity: v.number(), // Cantidad disponible en inventario
-        ingredients: v.array(v.string()),
-        tags: v.array(v.string()),
-        embedding: v.optional(v.array(v.float64())),
-      })
-    ),
+    products: v.array(v.object(productFields)),
   },
   handler: async (ctx, args) => {
     const ids: string[] = [];
@@ -124,26 +68,12 @@ export const update = mutation({
     id: v.id("products"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
-    category: v.optional(
-      v.union(
-        v.literal("pizza"),
-        v.literal("bebida"),
-        v.literal("postre"),
-        v.literal("plato")
-      )
-    ),
-    size: v.optional(
-      v.union(
-        v.literal("pequeña"),
-        v.literal("mediana"),
-        v.literal("grande"),
-        v.literal("familiar")
-      )
-    ),
+    category: v.optional(categoryValidator),
+    size: v.optional(sizeValidator),
     flavors: v.optional(v.array(v.string())),
     price: v.optional(v.number()),
     available: v.optional(v.boolean()),
-    quantity: v.optional(v.number()), // Cantidad disponible en inventario
+    quantity: v.optional(v.number()),
     ingredients: v.optional(v.array(v.string())),
     tags: v.optional(v.array(v.string())),
     embedding: v.optional(v.array(v.float64())),

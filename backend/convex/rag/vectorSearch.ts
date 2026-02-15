@@ -1,20 +1,14 @@
 import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
+import { categoryValidator } from "../shared/validators";
 
 // Vector search using a pre-computed embedding vector.
 // The embedding is generated on the Next.js side (localhost:7860).
 export const searchByEmbedding = action({
   args: {
     embedding: v.array(v.float64()),
-    category: v.optional(
-      v.union(
-        v.literal("pizza"),
-        v.literal("bebida"),
-        v.literal("postre"),
-        v.literal("plato")
-      )
-    ),
+    category: v.optional(categoryValidator),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<any[]> => {

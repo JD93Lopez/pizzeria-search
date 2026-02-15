@@ -1,17 +1,17 @@
-// Re-export from backend for convenience
-// This file is a placeholder that will be replaced by Convex codegen
-// when you run `npx convex dev` in the frontend directory
-
-// For now, we'll create a simplified version that works with the monorepo setup
-// In production, you should run Convex from the frontend directory
+// Manual API map — mirrors the Convex backend module structure.
+// Must be kept in sync when backend files are added/renamed.
 
 export const api = {
   agents: {
-    pizzaAgent: {
-      createThread: "agents/pizzaAgent:createThread",
-      getMessages: "agents/pizzaAgent:getMessages",
-      saveMessage: "agents/pizzaAgent:saveMessage",
-      processChatMessage: "agents/pizzaAgent:processChatMessage",
+    chatOrchestrator: {
+      processChatMessage: "agents/chatOrchestrator:processChatMessage",
+    },
+    messageService: {
+      saveMessage: "agents/messageService:saveMessage",
+      getMessages: "agents/messageService:getMessages",
+    },
+    threadService: {
+      createThread: "agents/threadService:createThread",
     },
   },
   products: {
