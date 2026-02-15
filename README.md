@@ -2,6 +2,10 @@
 
 Sistema de búsqueda inteligente de productos de pizzería usando Convex con RAG y Agents.
 
+## Video de Demostración del Chat
+
+https://upbeduco-my.sharepoint.com/:v:/g/personal/juan_lopez_2022_upb_edu_co/IQBVM3NpQdzqT7jX4hQUg5EsAdYQ8Gxze245UZjFd0HZwGQ?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=tGXk7u
+
 ## Características
 
 - 🔍 Búsqueda semántica de productos usando RAG
