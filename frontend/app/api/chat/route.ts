@@ -10,9 +10,11 @@ const EMBEDDINGS_URL =
   process.env.EMBEDDINGS_URL || "http://localhost:7860/v1/embeddings";
 const EMBEDDINGS_MODEL =
   process.env.EMBEDDINGS_MODEL || "multilingual-e5-large";
-const OLLAMA_URL =
-  process.env.OLLAMA_URL || "http://localhost:11434/api/generate";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2:3b";
+
+// OpenRouter configuration
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "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";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openrouter/aurora-alpha";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const SYSTEM_PROMPT = `Eres el asistente virtual de una pizzería. Tu única función es tomar pedidos con precisión. Sigue ESTRICTAMENTE estas reglas:
 
@@ -28,13 +30,13 @@ TOTAL: $[suma exacta]
 ### 2. BÚSQUEDA Y SELECCIÓN (CONCISO)
 - Al recibir resultados del catálogo, muestra SOLO:
 **[Nombre]** → $[precio] | [2-3 ingredientes clave]
-- Máximo 4 opciones. Sin explicaciones largas.
+- Máximo 6 opciones. Sin explicaciones largas.
 - Muestra siempre opciones del catálogo no las inventes.
 - Cuando el usuario elija uno: confirma en 1 línea y actualiza el resumen con total.
 
 ### 3. PIZZAS MITAD Y MITAD (REGLA EXPLÍCITA)
 - SOLO permitido si ambas mitades son del MISMO tamaño.
-- Precio final = (precio_mitad1 + precio_mitad2) / 2 → redondea a 1 decimal.
+- Precio final = el precio de la pizza de mayor valor.
 - Descuento de inventario: -0.5 unidades de cada sabor.
 - Si falta stock o tamaños distintos: rechaza inmediatamente y explica por qué.
 
@@ -143,69 +145,60 @@ export async function POST(request: NextRequest) {
       threadId,
     });
 
-    // 5. Build concatenated prompt with full context (for /generate endpoint)
-    let fullPrompt = `${SYSTEM_PROMPT}\n\n`;
-
-    // Add conversation history (limit to last 20 messages)
+    // 5. Prepare recent history (limit to last 20 messages)
     const recentHistory = (history as any[]).slice(-20);
-    if (recentHistory.length > 0) {
-      fullPrompt += "=== HISTORIAL DE CONVERSACIÓN ===\n";
-      for (const msg of recentHistory) {
-        const speaker = msg.role === "user" ? "CLIENTE" : "ASISTENTE";
-        fullPrompt += `${speaker}: ${msg.content}\n\n`;
-      }
-      fullPrompt += "=== FIN HISTORIAL ===\n\n";
-    }
 
-    // Add product search results if available
-    if (products.length > 0) {
-      fullPrompt += "=== PRODUCTOS RELACIONADOS ENCONTRADOS EN CATÁLOGO ===\n";
-      const productInfo = products
-        .map(
-          (p: any, i: number) =>
-            `${i + 1}. "${p.name}" - $${p.price} | Categoría: ${p.category} | Tamaño: ${p.size || "N/A"} | Disponible: ${p.available ? "Sí" : "No"} | Stock: ${p.quantity} unidades | Ingredientes: ${p.ingredients.join(", ")} | Relevancia: ${((p.score || 0) * 100).toFixed(0)}%`
-        )
-        .join("\n");
-      console.log("Productos encontrados para el prompt:\n" + productInfo);
-        fullPrompt += productInfo + "\n\n";
-      fullPrompt += "=== FIN CATÁLOGO ===\n\n";
-    }
-
-    // Add current user query
-    fullPrompt += `CLIENTE: ${query}\n\nASISTENTE:`;
-
-    // 6. Call Ollama /generate endpoint with concatenated prompt
+    // 6. Call OpenRouter API
     let assistantResponse: string;
     try {
-      const ollamaResponse = await fetch(OLLAMA_URL, {
+      const response = await fetch(OPENROUTER_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://pizzeria-app.local", // Optional
+          "X-Title": "Pizzeria Assistant" // Optional
+        },
         body: JSON.stringify({
-          model: OLLAMA_MODEL,
-          prompt: fullPrompt,
-          stream: false,
-          options: {
-            temperature: 0.7,
-            num_predict: 1024,
-            stop: ["CLIENTE:", "\n\nCLIENTE:"],
-          },
-        }),
+          model: OPENROUTER_MODEL,
+          messages: [
+            {
+              role: "system",
+              content: SYSTEM_PROMPT
+            },
+            ...recentHistory.map((msg: any) => ({
+              role: msg.role,
+              content: msg.content
+            })),
+            {
+              role: "user",
+              content: products.length > 0 
+                ? `Productos disponibles:\n${products.map((p: any, i: number) => 
+                    `${i + 1}. "${p.name}" - $${p.price} | Categoría: ${p.category} | Tamaño: ${p.size || "N/A"} | Stock: ${p.quantity}`
+                  ).join("\n")}\n\n${query}`
+                : query
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 1024,
+          stream: false // Set to false for simplicity, can enable streaming later
+        })
       });
 
-      if (!ollamaResponse.ok) {
+      if (!response.ok) {
         throw new Error(
-          `Ollama error: ${ollamaResponse.status} ${ollamaResponse.statusText}`
+          `OpenRouter error: ${response.status} ${response.statusText}`
         );
       }
 
-      const data = await ollamaResponse.json();
+      const data = await response.json();
       assistantResponse =
-        data.response?.trim() ||
+        data.choices[0]?.message?.content?.trim() ||
         "Lo siento, no pude generar una respuesta.";
     } catch (error) {
-      console.error("Ollama call failed:", error);
+      console.error("OpenRouter call failed:", error);
       assistantResponse =
-        "⚠️ No pude conectar con el servicio de chat. Verifica que Ollama esté corriendo en localhost:11434.\n\n";
+        "⚠️ No pude conectar con el servicio de chat. Verifica la configuración de OpenRouter.\n\n";
 
       // Fallback: show products if available
       if (products.length > 0) {
