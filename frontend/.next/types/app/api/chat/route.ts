@@ -1,8 +1,8 @@
-// File: C:\Users\juand\Desktop\Agente Pedidos\pizzeria-search\frontend\app\api\reindex\route.ts
-import * as entry from '../../../../../app/api/reindex/route.js'
+// File: C:\Users\juand\Desktop\Agente Pedidos\pizzeria-search\frontend\app\api\chat\route.ts
+import * as entry from '../../../../../app/api/chat/route.js'
 import type { NextRequest } from 'next/server.js'
 
-type TEntry = typeof import('../../../../../app/api/reindex/route.js')
+type TEntry = typeof import('../../../../../app/api/chat/route.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{
