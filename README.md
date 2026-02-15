@@ -19,6 +19,7 @@ https://upbeduco-my.sharepoint.com/:v:/g/personal/juan_lopez_2022_upb_edu_co/IQB
 - **Backend**: Convex (TypeScript)
 - **Frontend**: NextJS 14 (App Router)
 - **Base de datos**: Convex Database
+- **Embeddings**: Lightweight Embeddings API
 - **Búsqueda**: Vector Search integrado
 - **IA**: Convex Agents + RAG
 - **IA Chat**: Openrouter Aurora Alpha
