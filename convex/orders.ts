@@ -21,14 +21,15 @@ async function deductFullStock(
 ) {
   const product = await ctx.db.get(productId);
   if (!product) throw new Error(`Producto no encontrado: ${productId}`);
-  if (product.quantity < quantity) {
+  const stock = product.quantity ?? 0;
+  if (stock < quantity) {
     throw new Error(
-      `Cantidad insuficiente para ${product.name}. Disponible: ${product.quantity}, Solicitado: ${quantity}`
+      `Cantidad insuficiente para ${product.name}. Disponible: ${stock}, Solicitado: ${quantity}`
     );
   }
   await ctx.db.patch(productId, {
-    quantity: product.quantity - quantity,
-    available: product.quantity - quantity > 0,
+    quantity: stock - quantity,
+    available: stock - quantity > 0,
   });
 }
 
@@ -46,24 +47,26 @@ async function deductHalfStock(
     throw new Error(`Uno o ambos productos no encontrados: ${productIds}`);
   }
   const halfToDeduct = quantity * 0.5;
-  if (product1.quantity < halfToDeduct) {
+  const stock1 = product1.quantity ?? 0;
+  const stock2 = product2.quantity ?? 0;
+  if (stock1 < halfToDeduct) {
     throw new Error(
-      `Cantidad insuficiente para ${product1.name}. Disponible: ${product1.quantity}, Solicitado: ${halfToDeduct}`
+      `Cantidad insuficiente para ${product1.name}. Disponible: ${stock1}, Solicitado: ${halfToDeduct}`
     );
   }
-  if (product2.quantity < halfToDeduct) {
+  if (stock2 < halfToDeduct) {
     throw new Error(
-      `Cantidad insuficiente para ${product2.name}. Disponible: ${product2.quantity}, Solicitado: ${halfToDeduct}`
+      `Cantidad insuficiente para ${product2.name}. Disponible: ${stock2}, Solicitado: ${halfToDeduct}`
     );
   }
   await Promise.all([
     ctx.db.patch(productIds[0], {
-      quantity: product1.quantity - halfToDeduct,
-      available: product1.quantity - halfToDeduct > 0,
+      quantity: stock1 - halfToDeduct,
+      available: stock1 - halfToDeduct > 0,
     }),
     ctx.db.patch(productIds[1], {
-      quantity: product2.quantity - halfToDeduct,
-      available: product2.quantity - halfToDeduct > 0,
+      quantity: stock2 - halfToDeduct,
+      available: stock2 - halfToDeduct > 0,
     }),
   ]);
 }
@@ -73,7 +76,7 @@ async function restoreFullStock(ctx: MutationCtx, productId: Id<"products">, qua
   const product = await ctx.db.get(productId);
   if (product) {
     await ctx.db.patch(productId, {
-      quantity: product.quantity + quantity,
+      quantity: (product.quantity ?? 0) + quantity,
       available: true,
     });
   }
@@ -92,13 +95,13 @@ async function restoreHalfStock(
   const halfToRestore = quantity * 0.5;
   if (product1) {
     await ctx.db.patch(productIds[0], {
-      quantity: product1.quantity + halfToRestore,
+      quantity: (product1.quantity ?? 0) + halfToRestore,
       available: true,
     });
   }
   if (product2) {
     await ctx.db.patch(productIds[1], {
-      quantity: product2.quantity + halfToRestore,
+      quantity: (product2.quantity ?? 0) + halfToRestore,
       available: true,
     });
   }

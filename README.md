@@ -14,48 +14,40 @@ Sistema de pedidos para pizzería usando **@convex-dev/agent** y **@convex-dev/r
 
 ---
 
-## Arquitectura
-
-```
-monorepo/
-├── backend/                 # Convex serverless backend
-│   └── convex/
-│       ├── convex.config.ts # Componentes: agent + rag
-│       ├── schema.ts        # Schema de DB (products, orders)
-│       ├── products.ts      # CRUD del catálogo
-│       ├── orders.ts        # Órdenes con control de inventario
-│       ├── ai/
-│       │   ├── actions.ts   # API pública: startThread, sendMessage, getMessages, reindexProducts
-│       │   ├── agent.ts     # Agent + tool searchCatalog
-│       │   ├── prompts.ts   # System prompt del asistente
-│       │   ├── provider.ts  # Providers: OpenRouter (LLM) + embedding local
-│       │   └── ragSetup.ts  # Instancia RAG con embedding model
-│       └── shared/
-│           └── validators.ts # Validadores compartidos (categoryValidator, sizeValidator, etc.)
-│
-├── frontend/                # Next.js 14 (App Router)
-│   └── app/
-│       ├── chat/            # Página principal del chat
-│       │   ├── page.tsx     # Chat UI con useQuery reactivo
-│       │   └── components/  # MessageBubble, ChatInput, ErrorToast
-│       └── api/
-│           └── chat/route.ts # Next.js API route → llama a Convex action
-│
-└── tests/
-    └── orders.test.ts       # Tests de reglas de negocio (20 casos con vitest)
-```
-
-### Stack técnico
+## Stack técnico
 
 | Capa | Tecnología |
 |------|-----------|
 | Backend | [Convex](https://convex.dev) — serverless TypeScript |
 | Agente | [@convex-dev/agent](https://www.npmjs.com/package/@convex-dev/agent) — threads, steps, tool calling |
 | RAG | [@convex-dev/rag](https://www.npmjs.com/package/@convex-dev/rag) — embeddings + vector search |
-| LLM | [OpenRouter](https://openrouter.ai) — aurora-alpha via @ai-sdk/openai-compatible |
+| LLM | [OpenRouter](https://openrouter.ai) — aurora-alpha vía @ai-sdk/openai-compatible |
 | Embeddings | Servidor local `multilingual-e5-large` (1024 dims) |
 | Frontend | [Next.js 14](https://nextjs.org) App Router + [Tailwind CSS](https://tailwindcss.com) |
-| Tests | [Vitest](https://vitest.dev) — 20 tests de lógica de negocio |
+
+---
+
+## Estructura del proyecto
+
+```
+pizzeria-search/
+├── app/                    # Next.js App Router (frontend)
+│   ├── chat/               # Página del chat y componentes UI
+│   └── api/                # Route handlers (chat, reindex)
+├── convex/                 # Backend Convex (serverless)
+│   ├── ai/                 # Agente, RAG, proveedor, actions
+│   ├── shared/             # Validators compartidos
+│   ├── schema.ts           # Definición de tablas
+│   ├── orders.ts           # Mutations de pedidos con inventario
+│   ├── products.ts         # Queries/mutations de productos
+│   └── convex.config.ts    # Registro de componentes agent y rag
+├── lib/                    # ConvexClientProvider
+├── scripts/                # Utilidades (seed, reindex)
+├── package.json            # Proyecto unificado (sin workspaces)
+└── .env.local              # Variables de entorno
+```
+
+`convex/_generated/` es generado automáticamente por `npx convex dev` — no se commitea.
 
 ---
 
@@ -66,41 +58,31 @@ monorepo/
 - Node.js >= 18.x
 - Cuenta gratuita en [Convex](https://dashboard.convex.dev)
 - API key de [OpenRouter](https://openrouter.ai)
-- Servidor de embeddings local (e.g. llama.cpp, Ollama, LM Studio con modelo `multilingual-e5-large`)
+- Servidor de embeddings local lightweight embeddings con modelo `multilingual-e5-large`
 
 ### Variables de entorno
 
-**`backend/.env.local`**
+Crear `.env.local` en la raíz del proyecto:
+
 ```bash
 CONVEX_DEPLOYMENT=dev:tu-deployment-id    # generado por npx convex dev
+NEXT_PUBLIC_CONVEX_URL=https://tu-deployment.convex.cloud
+
 OPENROUTER_API_KEY=sk-or-v1-...
 OPENROUTER_MODEL=openrouter/aurora-alpha  # opcional
+
 EMBEDDINGS_URL=http://localhost:11434/v1  # URL del servidor de embeddings
 EMBEDDINGS_MODEL=multilingual-e5-large    # opcional
 ```
 
-**`frontend/.env.local`**
-```bash
-NEXT_PUBLIC_CONVEX_URL=https://tu-deployment.convex.cloud
-```
-
-### Instalación
+### Instalación y ejecución
 
 ```bash
-# 1. Backend — iniciar Convex y desplegar funciones
-cd backend
 npm install
-npx convex dev           # mantener corriendo en background
-
-# 2. Indexar catálogo (en otra terminal, desde backend/)
-npx convex run ai/actions:reindexProducts '{"startFrom":0,"limit":40}'
-# Repetir con startFrom=40, 80, ... hasta done=true
-
-# 3. Frontend
-cd ../frontend
-npm install
-npm run dev              # http://localhost:3000
+npm run dev   # lanza Convex dev watcher + Next.js en paralelo
 ```
+
+Abre [http://localhost:3000/chat](http://localhost:3000/chat).
 
 ---
 
@@ -109,11 +91,11 @@ npm run dev              # http://localhost:3000
 ### @convex-dev/agent
 
 ```typescript
-// backend/convex/ai/agent.ts
+// convex/ai/agent.ts
 export const pizzaAgent = new Agent(components.agent, {
   languageModel: openrouter.chatModel("openrouter/aurora-alpha"),
   instructions: SYSTEM_PROMPT,
-  tools: { searchCatalog },  // LLM decide cuándo invocar
+  tools: { searchCatalog },  // el LLM decide cuándo invocar
   maxSteps: 10,
 });
 ```
@@ -121,30 +103,19 @@ export const pizzaAgent = new Agent(components.agent, {
 ### @convex-dev/rag
 
 ```typescript
-// backend/convex/ai/ragSetup.ts
+// convex/ai/ragSetup.ts
 export const rag = new RAG(components.rag, {
   textEmbeddingModel: createLocalEmbeddingModel({ ... }),
   embeddingDimension: 1024,
 });
 
-// El tool searchCatalog llama a rag.search() — sin SQL, sin vectorIndex manual
-const { results } = await rag.search(ctx, { namespace: "products", query, limit: 8 });
+// convex/ai/agent.ts — tool searchCatalog
+const { results } = await rag.search(ctx, {
+  namespace: "products",
+  query: args.query,
+  limit: 8,
+});
 ```
 
----
-
-## Tests
-
-```bash
-# Desde la raíz del monorepo
-npm test
-```
-
-20 tests cubriendo:
-- Precios mitad y mitad (max de los dos)
-- Validación de tamaños iguales
-- Deducción de stock (0.5 unidades por mitad)
-- Restauración de stock al cancelar
-- Totales de órdenes con múltiples items
-- Casos borde (stock 0, cantidades negativas, pedidos grandes)
+Embeddings y búsqueda vectorial son gestionados internamente por el componente RAG.
 

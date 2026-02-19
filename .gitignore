@@ -19,8 +19,7 @@ node_modules/
 .env.production.local
 
 # Convex
-backend/convex/_generated/
-frontend/convex/_generated/
+convex/_generated/
 
 # Logs
 *.log

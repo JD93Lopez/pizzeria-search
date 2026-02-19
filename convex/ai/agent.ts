@@ -12,13 +12,15 @@ import { z } from "zod";
 
 /** A single content chunk returned by RAG search results. */
 interface RagContentChunk {
-  type: string;
   text: string;
+  metadata?: Record<string, unknown>;
 }
 
 /** A single result entry from rag.search(). */
 interface RagSearchResult {
-  key: string;
+  entryId: string;
+  order: number;
+  startOrder: number;
   score: number;
   content: RagContentChunk[];
 }
@@ -42,7 +44,7 @@ const searchCatalog = createTool({
       namespace: "products",
       query: args.query,
       limit: 8,
-    })) as { results: RagSearchResult[] };
+    })) as unknown as { results: RagSearchResult[] };
 
     if (results.length === 0) {
       return "No se encontraron productos para esa búsqueda.";
