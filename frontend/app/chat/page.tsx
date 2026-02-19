@@ -3,10 +3,17 @@
 import { useEffect, useState, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Message } from "@/lib/types";
 import { MessageBubble } from "./components/Message";
 import { ChatInput } from "./components/ChatInput";
 import { ErrorToast } from "./components/ErrorToast";
+
+/** Message shape returned by the agent's getMessages query. */
+interface ChatMessage {
+  _id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: number;
+}
 
 export default function ChatPage() {
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -14,20 +21,25 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const threadCreated = useRef(false);
 
-  const createThread = useMutation(api.agents.threadService.createThread);
+  const createThread = useMutation(api.ai.actions.startThread);
   const messages = useQuery(
-    api.agents.messageService.getMessages,
+    api.ai.actions.getMessages,
     threadId ? { threadId } : "skip"
   );
 
+  // Create thread once on mount — useRef prevents re-creation
   useEffect(() => {
+    if (threadCreated.current) return;
+    threadCreated.current = true;
+
     const initThread = async () => {
       const id = await createThread();
       setThreadId(id);
     };
     initThread();
-  }, [createThread]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -109,7 +121,7 @@ export default function ChatPage() {
         )}
 
         {/* Chat messages */}
-        {messages?.map((message: Message) => (
+        {messages?.map((message: ChatMessage) => (
           <MessageBubble key={message._id} message={message} />
         ))}
 

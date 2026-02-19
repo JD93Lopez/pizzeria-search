@@ -21,7 +21,7 @@
     "set-test-quantities": "ts-node scripts/set-test-quantities.ts",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
-    "test": "node -e \"console.log('smoke test ok')\""
+    "test": "vitest run"
   },
   "devDependencies": {
     "concurrently": "^8.2.0",
@@ -30,6 +30,7 @@
     "eslint": "^8.50.0",
     "prettier": "^3.0.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.2.0"
+    "typescript": "^5.2.0",
+    "vitest": "^4.0.18"
   }
 }

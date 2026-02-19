@@ -9,6 +9,7 @@ node_modules/
 # Production
 /build
 /dist
+.next/
 
 # Environment variables
 .env
@@ -19,6 +20,7 @@ node_modules/
 
 # Convex
 backend/convex/_generated/
+frontend/convex/_generated/
 
 # Logs
 *.log

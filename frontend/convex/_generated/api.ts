@@ -1,43 +1,24 @@
-// Manual API map — mirrors the Convex backend module structure.
-// Must be kept in sync when backend files are added/renamed.
+/* eslint-disable */
+/**
+ * Generated `api` utility.
+ *
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev --once` from the backend directory.
+ * Type declarations live in backend/convex/_generated/api.d.ts.
+ *
+ * @module
+ */
+import { anyApi, componentsGeneric } from "convex/server";
 
-export const api = {
-  agents: {
-    chatOrchestrator: {
-      processChatMessage: "agents/chatOrchestrator:processChatMessage",
-    },
-    messageService: {
-      saveMessage: "agents/messageService:saveMessage",
-      getMessages: "agents/messageService:getMessages",
-    },
-    threadService: {
-      createThread: "agents/threadService:createThread",
-    },
-  },
-  products: {
-    list: "products:list",
-    getById: "products:getById",
-    getByIds: "products:getByIds",
-    create: "products:create",
-    createMany: "products:createMany",
-    update: "products:update",
-    remove: "products:remove",
-    clearAll: "products:clearAll",
-    setAllQuantities: "products:setAllQuantities",
-  },
-  orders: {
-    create: "orders:create",
-    confirm: "orders:confirm",
-    cancel: "orders:cancel",
-    getById: "orders:getById",
-    getByThread: "orders:getByThread",
-  },
-  rag: {
-    vectorSearch: {
-      searchByEmbedding: "rag/vectorSearch:searchByEmbedding",
-    },
-    productIndexer: {
-      indexProductPublic: "rag/productIndexer:indexProductPublic",
-    },
-  },
-} as any;
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
+export const api = anyApi;
+export const internal = anyApi;
+export const components = componentsGeneric();

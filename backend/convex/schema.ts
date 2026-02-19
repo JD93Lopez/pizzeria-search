@@ -1,6 +1,12 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+/**
+ * Application schema.
+ *
+ * Threads and messages are managed internally by @convex-dev/agent.
+ * Embeddings are managed internally by @convex-dev/rag.
+ */
 export default defineSchema({
   products: defineTable({
     name: v.string(),
@@ -23,9 +29,11 @@ export default defineSchema({
     flavors: v.optional(v.array(v.string())),
     price: v.number(),
     available: v.boolean(),
-    quantity: v.optional(v.number()), // Cantidad disponible en inventario
+    quantity: v.optional(v.number()),
     ingredients: v.array(v.string()),
     tags: v.array(v.string()),
+    // Legacy field — kept for backward compatibility with existing data.
+    // New embeddings are handled by the RAG component.
     embedding: v.optional(v.array(v.float64())),
   })
     .index("by_category", ["category"])
@@ -36,20 +44,6 @@ export default defineSchema({
       filterFields: ["category", "available"],
     }),
 
-  messages: defineTable({
-    threadId: v.string(),
-    role: v.union(v.literal("user"), v.literal("assistant")),
-    content: v.string(),
-    createdAt: v.number(),
-  }).index("by_thread", ["threadId", "createdAt"]),
-
-  threads: defineTable({
-    title: v.optional(v.string()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  }),
-
-  // Orders table
   orders: defineTable({
     threadId: v.string(),
     status: v.union(
@@ -59,13 +53,9 @@ export default defineSchema({
     ),
     items: v.array(
       v.object({
-        // "full" = pizza completa, "half" = pizza a mitades
         type: v.union(v.literal("full"), v.literal("half")),
-        // For full: single product ID. For half: two product IDs
         productIds: v.array(v.id("products")),
-        // Size of the pizza (both halves must match size)
         size: v.optional(v.string()),
-        // Calculated price for this item
         price: v.number(),
         quantity: v.number(),
       })

@@ -1,7 +1,13 @@
-import { Message } from "@/lib/types";
+/** Message shape returned by the agent's getMessages query. */
+interface ChatMessage {
+  _id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: number;
+}
 
 interface MessageBubbleProps {
-  message: Message;
+  message: ChatMessage;
 }
 
 // Simple markdown-like rendering for bold, line breaks

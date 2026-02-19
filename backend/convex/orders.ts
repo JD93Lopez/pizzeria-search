@@ -1,13 +1,14 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 import { orderItemValidator } from "./shared/validators";
 
 // ── Stock helpers ────────────────────────────────────────────────
 
 /** Deduct stock for a full pizza item. */
 async function deductFullStock(
-  ctx: any,
-  productId: any,
+  ctx: MutationCtx,
+  productId: Id<"products">,
   quantity: number
 ) {
   const product = await ctx.db.get(productId);
@@ -25,8 +26,8 @@ async function deductFullStock(
 
 /** Deduct stock for a half-and-half pizza item. */
 async function deductHalfStock(
-  ctx: any,
-  productIds: any[],
+  ctx: MutationCtx,
+  productIds: Id<"products">[],
   quantity: number
 ) {
   const [product1, product2] = await Promise.all([
@@ -60,7 +61,7 @@ async function deductHalfStock(
 }
 
 /** Restore stock for a full pizza item. */
-async function restoreFullStock(ctx: any, productId: any, quantity: number) {
+async function restoreFullStock(ctx: MutationCtx, productId: Id<"products">, quantity: number) {
   const product = await ctx.db.get(productId);
   if (product) {
     await ctx.db.patch(productId, {
@@ -72,8 +73,8 @@ async function restoreFullStock(ctx: any, productId: any, quantity: number) {
 
 /** Restore stock for a half-and-half pizza item. */
 async function restoreHalfStock(
-  ctx: any,
-  productIds: any[],
+  ctx: MutationCtx,
+  productIds: Id<"products">[],
   quantity: number
 ) {
   const [product1, product2] = await Promise.all([
