@@ -1,24 +1,20 @@
 /* eslint-disable */
 /**
- * Generated `api` utility.
+ * Convex API reference for the frontend (monorepo pattern).
  *
- * THIS CODE IS AUTOMATICALLY GENERATED.
+ * In a monorepo where the frontend and backend are separate packages,
+ * Convex cannot auto-generate strongly-typed API references for the frontend
+ * directly. Instead, we use `anyApi` as a type-safe-enough proxy that lets
+ * `useQuery`, `useMutation`, and `useAction` resolve function references at
+ * runtime via Convex's path-based routing.
  *
- * To regenerate, run `npx convex dev --once` from the backend directory.
  * Type declarations live in backend/convex/_generated/api.d.ts.
+ * The canonical generated file is only present in the backend package.
  *
  * @module
  */
 import { anyApi, componentsGeneric } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 export const api = anyApi;
 export const internal = anyApi;
 export const components = componentsGeneric();

@@ -1,53 +1,61 @@
+/**
+ * Product CRUD operations.
+ *
+ * Embeddings and vector search are handled by @convex-dev/rag —
+ * no embedding fields are managed here.
+ */
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { categoryValidator, sizeValidator, productFields } from "./shared/validators";
 
-// Query: Get all products
+// ── Queries ──────────────────────────────────────────────────────
+
+/** List all products, optionally filtered by category and/or paginated. */
 export const list = query({
   args: {
     category: v.optional(categoryValidator),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    if (args.category) {
-      const products = await ctx.db
-        .query("products")
-        .withIndex("by_category", (q) => q.eq("category", args.category!))
-        .collect();
-      return args.limit ? products.slice(0, args.limit) : products;
-    }
+    const products = args.category
+      ? await ctx.db
+          .query("products")
+          .withIndex("by_category", (q) => q.eq("category", args.category!))
+          .collect()
+      : await ctx.db.query("products").collect();
 
-    const products = await ctx.db.query("products").collect();
     return args.limit ? products.slice(0, args.limit) : products;
   },
 });
 
-// Query: Get product by ID
+/** Get a single product by its Convex document ID. */
 export const getById = query({
   args: { id: v.id("products") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    return ctx.db.get(args.id);
   },
 });
 
-// Query: Get products by IDs
+/** Get multiple products by their Convex document IDs. */
 export const getByIds = query({
   args: { ids: v.array(v.id("products")) },
   handler: async (ctx, args) => {
     const products = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
-    return products.filter((p) => p !== null);
+    return products.filter((p): p is NonNullable<typeof p> => p !== null);
   },
 });
 
-// Mutation: Create a product
+// ── Mutations ────────────────────────────────────────────────────
+
+/** Insert a new product into the catalog. */
 export const create = mutation({
   args: productFields,
   handler: async (ctx, args) => {
-    return await ctx.db.insert("products", args);
+    return ctx.db.insert("products", args);
   },
 });
 
-// Mutation: Create many products (batch)
+/** Insert multiple products in a single transaction (used for seeding). */
 export const createMany = mutation({
   args: {
     products: v.array(v.object(productFields)),
@@ -62,7 +70,7 @@ export const createMany = mutation({
   },
 });
 
-// Mutation: Update a product
+/** Update specific fields of an existing product. */
 export const update = mutation({
   args: {
     id: v.id("products"),
@@ -76,16 +84,15 @@ export const update = mutation({
     quantity: v.optional(v.number()),
     ingredients: v.optional(v.array(v.string())),
     tags: v.optional(v.array(v.string())),
-    embedding: v.optional(v.array(v.float64())),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
     await ctx.db.patch(id, updates);
-    return await ctx.db.get(id);
+    return ctx.db.get(id);
   },
 });
 
-// Mutation: Delete a product
+/** Delete a product by ID. */
 export const remove = mutation({
   args: { id: v.id("products") },
   handler: async (ctx, args) => {
@@ -94,7 +101,7 @@ export const remove = mutation({
   },
 });
 
-// Mutation: Clear all products (for seeding)
+/** Delete all products — used during catalog seeding. */
 export const clearAll = mutation({
   handler: async (ctx) => {
     const products = await ctx.db.query("products").collect();
@@ -105,21 +112,17 @@ export const clearAll = mutation({
   },
 });
 
-// Mutation: Set all products quantity to a specific value (for testing)
+/** Set all products to the same stock quantity — used for testing. */
 export const setAllQuantities = mutation({
   args: { quantity: v.number() },
   handler: async (ctx, args) => {
     const products = await ctx.db.query("products").collect();
-    let updated = 0;
-    
     for (const product of products) {
-      await ctx.db.patch(product._id, { 
+      await ctx.db.patch(product._id, {
         quantity: args.quantity,
-        available: args.quantity > 0 
+        available: args.quantity > 0,
       });
-      updated++;
     }
-    
-    return { updated, totalProducts: products.length };
+    return { updated: products.length };
   },
 });

@@ -1,7 +1,9 @@
 /**
- * Public actions, queries and mutations for the chat interface.
- * Uses @convex-dev/agent for thread/message management and
- * @convex-dev/rag for product catalog indexing.
+ * Public API endpoints for the chat interface and catalog indexing.
+ *
+ * Depends on:
+ * - @convex-dev/agent  — thread lifecycle and message persistence
+ * - @convex-dev/rag    — product catalog embeddings and vector search
  */
 import { action, query, mutation } from "../_generated/server";
 import { v } from "convex/values";
@@ -9,6 +11,32 @@ import { pizzaAgent } from "./agent";
 import { rag } from "./ragSetup";
 import { api, components } from "../_generated/api";
 import { createThread, listUIMessages } from "@convex-dev/agent";
+
+// ── Internal types ───────────────────────────────────────────────
+
+/** Shape of a product document as returned by products.list. */
+interface ProductRecord {
+  _id: string;
+  name: string;
+  price: number;
+  category: string;
+  size?: string;
+  ingredients: string[];
+  description: string;
+  quantity?: number;
+  available: boolean;
+  tags: string[];
+}
+
+/** Result returned by reindexProducts. */
+interface ReindexResult {
+  indexed: number;
+  total: number;
+  nextFrom: number;
+  done: boolean;
+  errors?: string[];
+}
+
 
 // ── Thread Management ────────────────────────────────────────────
 
@@ -100,25 +128,8 @@ export const reindexProducts = action({
   handler: async (
     ctx,
     { startFrom = 0, limit = 50, stopOnError = false }
-  ): Promise<{
-    indexed: number;
-    total: number;
-    nextFrom: number;
-    done: boolean;
-    errors?: string[];
-  }> => {
-    const products: Array<{
-      _id: string;
-      name: string;
-      price: number;
-      category: string;
-      size?: string;
-      ingredients: string[];
-      description: string;
-      quantity?: number;
-      available: boolean;
-      tags: string[];
-    }> = await ctx.runQuery(api.products.list, {});
+  ): Promise<ReindexResult> => {
+    const products = (await ctx.runQuery(api.products.list, {})) as ProductRecord[];
 
     const total = products.length;
     const slice = products.slice(startFrom, startFrom + limit);

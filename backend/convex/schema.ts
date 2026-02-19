@@ -4,8 +4,8 @@ import { v } from "convex/values";
 /**
  * Application schema.
  *
- * Threads and messages are managed internally by @convex-dev/agent.
- * Embeddings are managed internally by @convex-dev/rag.
+ * - Threads and messages are managed internally by @convex-dev/agent.
+ * - Embeddings and vector search are managed internally by @convex-dev/rag.
  */
 export default defineSchema({
   products: defineTable({
@@ -32,17 +32,10 @@ export default defineSchema({
     quantity: v.optional(v.number()),
     ingredients: v.array(v.string()),
     tags: v.array(v.string()),
-    // Legacy field — kept for backward compatibility with existing data.
-    // New embeddings are handled by the RAG component.
     embedding: v.optional(v.array(v.float64())),
   })
     .index("by_category", ["category"])
-    .index("by_available", ["available"])
-    .vectorIndex("by_embedding", {
-      vectorField: "embedding",
-      dimensions: 1024,
-      filterFields: ["category", "available"],
-    }),
+    .index("by_available", ["available"]),
 
   orders: defineTable({
     threadId: v.string(),

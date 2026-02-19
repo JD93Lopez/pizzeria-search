@@ -33,7 +33,6 @@ export const productFields = {
   quantity: v.number(),
   ingredients: v.array(v.string()),
   tags: v.array(v.string()),
-  embedding: v.optional(v.array(v.float64())),
 };
 
 // ── Order item validator ─────────────────────────────────────────

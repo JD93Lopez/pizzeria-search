@@ -1,3 +1,11 @@
+/**
+ * Order management with real-time inventory control.
+ *
+ * Supports full pizzas and half-and-half orders:
+ * - Full: deducts `quantity` units from one product.
+ * - Half: deducts `0.5 × quantity` units from each of two products.
+ * Cancelled orders restore the deducted inventory.
+ */
 import { mutation, query, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
@@ -97,6 +105,7 @@ async function restoreHalfStock(
 }
 
 // Create an order
+/** Create a new order, deducting inventory for each item. */
 export const create = mutation({
   args: {
     threadId: v.string(),
@@ -125,6 +134,7 @@ export const create = mutation({
 });
 
 // Confirm an order
+/** Mark an order as confirmed (no inventory change). */
 export const confirm = mutation({
   args: { id: v.id("orders") },
   handler: async (ctx, args) => {
@@ -136,6 +146,7 @@ export const confirm = mutation({
 });
 
 // Cancel an order
+/** Cancel a pending order and restore all reserved inventory. */
 export const cancel = mutation({
   args: { id: v.id("orders") },
   handler: async (ctx, args) => {
@@ -162,6 +173,7 @@ export const cancel = mutation({
 });
 
 // Get order by ID
+/** Get a single order by its Convex document ID. */
 export const getById = query({
   args: { id: v.id("orders") },
   handler: async (ctx, args) => {
@@ -170,6 +182,7 @@ export const getById = query({
 });
 
 // Get orders by thread
+/** Get all orders associated with a chat thread, newest last. */
 export const getByThread = query({
   args: { threadId: v.string() },
   handler: async (ctx, args) => {
